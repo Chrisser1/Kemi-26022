@@ -20,136 +20,130 @@ class Element:
 PT: Dict[str, Element] = {}
 
 def _load_periodic_table() -> None:
-    """Populate the *PT* registry with all 118 elements.
-
-    Atomic masses come from the IUPAC 2023 Table of Standard Atomic Weights.
-    Values for radioactive super‑heavies are the mass number of the most
-    stable isotope (shown in parentheses in most references).
-    """
+    # symbol, name, Z, atomic_mass, group, period
     elements = [
-        # symbol, name, Z, atomic_mass
-        ("H",  "Hydrogen",      1,   1.01),
-        ("He", "Helium",        2,   4.00),
-        ("Li", "Lithium",       3,   6.94),
-        ("Be", "Beryllium",     4,   9.01),
-        ("B",  "Boron",         5,  10.81),
-        ("C",  "Carbon",        6,  12.01),
-        ("N",  "Nitrogen",      7,  14.01),
-        ("O",  "Oxygen",        8,  16.00),
-        ("F",  "Fluorine",      9,  19.00),
-        ("Ne", "Neon",         10,  20.18),
-        ("Na", "Sodium",       11,  22.99),
-        ("Mg", "Magnesium",    12,  24.31),
-        ("Al", "Aluminium",    13,  26.98),
-        ("Si", "Silicon",      14,  28.09),
-        ("P",  "Phosphorus",   15,  30.97),
-        ("S",  "Sulfur",       16,  32.06),
-        ("Cl", "Chlorine",     17,  35.45),
-        ("Ar", "Argon",        18,  39.95),
-        ("K",  "Potassium",    19,  39.10),
-        ("Ca", "Calcium",      20,  40.08),
-        ("Sc", "Scandium",     21,  44.96),
-        ("Ti", "Titanium",     22,  47.87),
-        ("V",  "Vanadium",     23,  50.94),
-        ("Cr", "Chromium",     24,  52.00),
-        ("Mn", "Manganese",    25,  54.94),
-        ("Fe", "Iron",         26,  55.85),
-        ("Co", "Cobalt",       27,  58.93),
-        ("Ni", "Nickel",       28,  58.69),
-        ("Cu", "Copper",       29,  63.55),
-        ("Zn", "Zinc",         30,  65.38),
-        ("Ga", "Gallium",      31,  69.72),
-        ("Ge", "Germanium",    32,  72.63),
-        ("As", "Arsenic",      33,  74.92),
-        ("Se", "Selenium",     34,  78.97),
-        ("Br", "Bromine",      35,  79.90),
-        ("Kr", "Krypton",      36,  83.80),
-        ("Rb", "Rubidium",     37,  85.47),
-        ("Sr", "Strontium",    38,  87.62),
-        ("Y",  "Yttrium",      39,  88.91),
-        ("Zr", "Zirconium",    40,  91.22),
-        ("Nb", "Niobium",      41,  92.91),
-        ("Mo", "Molybdenum",   42,  95.95),
-        ("Tc", "Technetium",   43,  98.0),
-        ("Ru", "Ruthenium",    44, 101.07),
-        ("Rh", "Rhodium",      45, 102.91),
-        ("Pd", "Palladium",    46, 106.42),
-        ("Ag", "Silver",       47, 107.87),
-        ("Cd", "Cadmium",      48, 112.41),
-        ("In", "Indium",       49, 114.82),
-        ("Sn", "Tin",          50, 118.71),
-        ("Sb", "Antimony",     51, 121.76),
-        ("Te", "Tellurium",    52, 127.60),
-        ("I",  "Iodine",       53, 126.90),
-        ("Xe", "Xenon",        54, 131.29),
-        ("Cs", "Caesium",      55, 132.91),
-        ("Ba", "Barium",       56, 137.33),
-        ("La", "Lanthanum",    57, 138.91),
-        ("Ce", "Cerium",       58, 140.12),
-        ("Pr", "Praseodymium", 59, 140.91),
-        ("Nd", "Neodymium",    60, 144.24),
-        ("Pm", "Promethium",   61, 145.0),
-        ("Sm", "Samarium",     62, 150.36),
-        ("Eu", "Europium",     63, 151.96),
-        ("Gd", "Gadolinium",   64, 157.25),
-        ("Tb", "Terbium",      65, 158.93),
-        ("Dy", "Dysprosium",   66, 162.50),
-        ("Ho", "Holmium",      67, 164.93),
-        ("Er", "Erbium",       68, 167.26),
-        ("Tm", "Thulium",      69, 168.93),
-        ("Yb", "Ytterbium",    70, 173.05),
-        ("Lu", "Lutetium",     71, 174.97),
-        ("Hf", "Hafnium",      72, 178.49),
-        ("Ta", "Tantalum",     73, 180.95),
-        ("W",  "Tungsten",     74, 183.84),
-        ("Re", "Rhenium",      75, 186.21),
-        ("Os", "Osmium",       76, 190.23),
-        ("Ir", "Iridium",      77, 192.22),
-        ("Pt", "Platinum",     78, 195.08),
-        ("Au", "Gold",         79, 196.97),
-        ("Hg", "Mercury",      80, 200.59),
-        ("Tl", "Thallium",     81, 204.38),
-        ("Pb", "Lead",         82, 207.2),
-        ("Bi", "Bismuth",      83, 208.98),
-        ("Po", "Polonium",     84, 209.0),
-        ("At", "Astatine",     85, 210.0),
-        ("Rn", "Radon",        86, 222.0),
-        ("Fr", "Francium",     87, 223.0),
-        ("Ra", "Radium",       88, 226.0),
-        ("Ac", "Actinium",     89, 227.0),
-        ("Th", "Thorium",      90, 232.04),
-        ("Pa", "Protactinium", 91, 231.04),
-        ("U",  "Uranium",      92, 238.03),
-        ("Np", "Neptunium",    93, 237.0),
-        ("Pu", "Plutonium",    94, 244.0),
-        ("Am", "Americium",    95, 243.0),
-        ("Cm", "Curium",       96, 247.0),
-        ("Bk", "Berkelium",    97, 247.0),
-        ("Cf", "Californium",  98, 251.0),
-        ("Es", "Einsteinium",  99, 252.0),
-        ("Fm", "Fermium",     100, 257.0),
-        ("Md", "Mendelevium", 101, 258.0),
-        ("No", "Nobelium",    102, 259.0),
-        ("Lr", "Lawrencium",  103, 266.0),
-        ("Rf", "Rutherfordium",104, 267.0),
-        ("Db", "Dubnium",     105, 268.0),
-        ("Sg", "Seaborgium",  106, 269.0),
-        ("Bh", "Bohrium",     107, 270.0),
-        ("Hs", "Hassium",     108, 270.0),
-        ("Mt", "Meitnerium",  109, 278.0),
-        ("Ds", "Darmstadtium",110, 281.0),
-        ("Rg", "Roentgenium", 111, 282.0),
-        ("Cn", "Copernicium", 112, 285.0),
-        ("Nh", "Nihonium",    113, 286.0),
-        ("Fl", "Flerovium",   114, 289.0),
-        ("Mc", "Moscovium",   115, 290.0),
-        ("Lv", "Livermorium", 116, 293.0),
-        ("Ts", "Tennessine",  117, 294.0),
-        ("Og", "Oganesson",   118, 294.0),
+        ("H",  "Hydrogen",      1,   1.0079,    1, 1),
+        ("He", "Helium",        2,   4.0026,   18, 1),
+        ("Li", "Lithium",       3,   6.941,     1, 2),
+        ("Be", "Beryllium",     4,   9.0122,    2, 2),
+        ("B",  "Boron",         5,  10.81,     13, 2),
+        ("C",  "Carbon",        6,  12.011,    14, 2),
+        ("N",  "Nitrogen",      7,  14.007,    15, 2),
+        ("O",  "Oxygen",        8,  15.999,    16, 2),
+        ("F",  "Fluorine",      9,  18.998,    17, 2),
+        ("Ne", "Neon",         10,  20.180,    18, 2),
+        ("Na", "Sodium",       11,  22.990,     1, 3),
+        ("Mg", "Magnesium",    12,  24.305,     2, 3),
+        ("Al", "Aluminium",    13,  26.982,    13, 3),
+        ("Si", "Silicon",      14,  28.086,    14, 3),
+        ("P",  "Phosphorus",   15,  30.974,    15, 3),
+        ("S",  "Sulfur",       16,  32.06,     16, 3),
+        ("Cl", "Chlorine",     17,  35.45,     17, 3),
+        ("Ar", "Argon",        18,  39.948,    18, 3),
+        ("K",  "Potassium",    19,  39.098,     1, 4),
+        ("Ca", "Calcium",      20,  40.078,     2, 4),
+        ("Sc", "Scandium",     21,  44.956,     3, 4),
+        ("Ti", "Titanium",     22,  47.867,     4, 4),
+        ("V",  "Vanadium",     23,  50.942,     5, 4),
+        ("Cr", "Chromium",     24,  51.996,     6, 4),
+        ("Mn", "Manganese",    25,  54.938,     7, 4),
+        ("Fe", "Iron",         26,  55.845,     8, 4),
+        ("Co", "Cobalt",       27,  58.933,     9, 4),
+        ("Ni", "Nickel",       28,  58.693,    10, 4),
+        ("Cu", "Copper",       29,  63.546,    11, 4),
+        ("Zn", "Zinc",         30,  65.38,     12, 4),
+        ("Ga", "Gallium",      31,  69.723,    13, 4),
+        ("Ge", "Germanium",    32,  72.63,     14, 4),
+        ("As", "Arsenic",      33,  74.922,    15, 4),
+        ("Se", "Selenium",     34,  78.971,    16, 4),
+        ("Br", "Bromine",      35,  79.904,    17, 4),
+        ("Kr", "Krypton",      36,  83.798,    18, 4),
+        ("Rb", "Rubidium",     37,  85.468,     1, 5),
+        ("Sr", "Strontium",    38,  87.62,      2, 5),
+        ("Y",  "Yttrium",      39,  88.906,     3, 5),
+        ("Zr", "Zirconium",    40,  91.224,     4, 5),
+        ("Nb", "Niobium",      41,  92.906,     5, 5),
+        ("Mo", "Molybdenum",   42,  95.95,      6, 5),
+        ("Tc", "Technetium",   43,  98.0,       7, 5),
+        ("Ru", "Ruthenium",    44, 101.07,      8, 5),
+        ("Rh", "Rhodium",      45, 102.91,      9, 5),
+        ("Pd", "Palladium",    46, 106.42,     10, 5),
+        ("Ag", "Silver",       47, 107.868,    11, 5),
+        ("Cd", "Cadmium",      48, 112.414,    12, 5),
+        ("In", "Indium",       49, 114.818,    13, 5),
+        ("Sn", "Tin",          50, 118.71,     14, 5),
+        ("Sb", "Antimony",     51, 121.76,     15, 5),
+        ("Te", "Tellurium",    52, 127.60,     16, 5),
+        ("I",  "Iodine",       53, 126.904,    17, 5),
+        ("Xe", "Xenon",        54, 131.293,    18, 5),
+        ("Cs", "Caesium",      55, 132.905,     1, 6),
+        ("Ba", "Barium",       56, 137.327,     2, 6),
+        ("La", "Lanthanum",    57, 138.905,     3, 9),  # La–Lu in period 6 lanthanoid row
+        ("Ce", "Cerium",       58, 140.116,     4, 9),
+        ("Pr", "Praseodymium", 59, 140.908,     5, 9),
+        ("Nd", "Neodymium",    60, 144.242,     6, 9),
+        ("Pm", "Promethium",   61, 145.0,       7, 9),
+        ("Sm", "Samarium",     62, 150.36,      8, 9),
+        ("Eu", "Europium",     63, 151.964,     9, 9),
+        ("Gd", "Gadolinium",   64, 157.25,     10, 9),
+        ("Tb", "Terbium",      65, 158.925,    11, 9),
+        ("Dy", "Dysprosium",   66, 162.500,    12, 9),
+        ("Ho", "Holmium",      67, 164.930,    13, 9),
+        ("Er", "Erbium",       68, 167.259,    14, 9),
+        ("Tm", "Thulium",      69, 168.934,    15, 9),
+        ("Yb", "Ytterbium",    70, 173.045,    16, 9),
+        ("Lu", "Lutetium",     71, 174.967,    17, 9),
+        ("Hf", "Hafnium",      72, 178.49,      4, 6),
+        ("Ta", "Tantalum",     73, 180.948,     5, 6),
+        ("W",  "Tungsten",     74, 183.84,      6, 6),
+        ("Re", "Rhenium",      75, 186.207,     7, 6),
+        ("Os", "Osmium",       76, 190.23,      8, 6),
+        ("Ir", "Iridium",      77, 192.217,     9, 6),
+        ("Pt", "Platinum",     78, 195.084,    10, 6),
+        ("Au", "Gold",         79, 196.966,    11, 6),
+        ("Hg", "Mercury",      80, 200.592,    12, 6),
+        ("Tl", "Thallium",     81, 204.38,     13, 6),
+        ("Pb", "Lead",         82, 207.2,      14, 6),
+        ("Bi", "Bismuth",      83, 208.980,    15, 6),
+        ("Po", "Polonium",     84, 209.0,      16, 6),
+        ("At", "Astatine",     85, 210.0,      17, 6),
+        ("Rn", "Radon",        86, 222.0,      18, 6),
+        ("Fr", "Francium",     87, 223.0,       1, 7),
+        ("Ra", "Radium",       88, 226.0,       2, 7),
+        ("Ac", "Actinium",     89, 227.0,       3,10),  # Ac–Lr in period 7 actinoid row
+        ("Th", "Thorium",      90, 232.038,     4,10),
+        ("Pa", "Protactinium", 91, 231.036,     5,10),
+        ("U",  "Uranium",      92, 238.029,     6,10),
+        ("Np", "Neptunium",    93, 237.0,       7,10),
+        ("Pu", "Plutonium",    94, 244.0,       8,10),
+        ("Am", "Americium",    95, 243.0,       9,10),
+        ("Cm", "Curium",       96, 247.0,      10,10),
+        ("Bk", "Berkelium",    97, 247.0,      11,10),
+        ("Cf", "Californium",  98, 251.0,      12,10),
+        ("Es", "Einsteinium",  99, 252.0,      13,10),
+        ("Fm", "Fermium",     100, 257.0,      14,10),
+        ("Md", "Mendelevium",101, 258.0,       15,10),
+        ("No", "Nobelium",   102, 259.0,       16,10),
+        ("Lr", "Lawrencium",103, 266.0,        17,10),
+        ("Rf", "Rutherfordium",104, 267.0,     4, 7),
+        ("Db", "Dubnium",     105, 268.0,      5, 7),
+        ("Sg", "Seaborgium",  106, 269.0,      6, 7),
+        ("Bh", "Bohrium",     107, 270.0,      7, 7),
+        ("Hs", "Hassium",     108, 270.0,      8, 7),
+        ("Mt", "Meitnerium",  109, 278.0,      9, 7),
+        ("Ds", "Darmstadtium",110, 281.0,     10, 7),
+        ("Rg", "Roentgenium", 111, 282.0,     11, 7),
+        ("Cn", "Copernicium", 112, 285.0,     12, 7),
+        ("Nh", "Nihonium",    113, 286.0,     13, 7),
+        ("Fl", "Flerovium",   114, 289.0,     14, 7),
+        ("Mc", "Moscovium",   115, 290.0,     15, 7),
+        ("Lv", "Livermorium", 116, 293.0,     16, 7),
+        ("Ts", "Tennessine",  117, 294.0,     17, 7),
+        ("Og", "Oganesson",   118, 294.0,     18, 7),
     ]
 
-    for sym, name, z, mass in elements:
-        PT[sym] = Element(sym, name, z, mass)
+    for sym, name, z, mass, grp, prd in elements:
+        PT[sym] = Element(sym, name, z, mass, group=grp, period=prd)
 
 _load_periodic_table()
 
@@ -216,6 +210,9 @@ class Compound:
 
     _COVALENT_NONMETALS = {'H','C','N','O','F','P','S','Cl','Se','Br','I'}
 
+    # for bond‐type classification:
+    _NONMETALS = _COVALENT_NONMETALS | {"He","Ne","Ar","Kr","Xe","Rn","Og"}
+
     _POLYATOMIC_IONS = {
     'NH4': 'ammonium',
     'OH': 'hydroxide',
@@ -270,12 +267,47 @@ class Compound:
         # …add more if you like
     }
 
-    def __init__(self,
-                 formula_or_comp: Union[str, Dict[str, int]]):
+    # Pauling electronegativity (add more as needed)
+    _EN: dict[str,float] = {
+        "H":2.20,"C":2.55,"N":3.04,"O":3.44,"F":3.98,
+        "P":2.19,"S":2.58,"Cl":3.16,"Br":2.96,"I":2.66,
+        "Na":0.93,"Mg":1.31,"Al":1.61,"Si":1.90,"K":0.82,
+        "Ca":1.00,"Fe":1.83,"Cu":1.90,"Zn":1.65,"Ag":1.93,
+        # …extend for any others you’ll encounter…
+    }
+
+    # regex to pull off a trailing ionic charge, e.g. "Fe2+", "Cl-", "SO4^2-"
+    _ion_re = re.compile(r'^(?P<formula>[A-Za-z0-9()]+)'
+                         r'(?P<charge>⁺⁻0-9\+\-]+)$')
+
+    phase: Optional[str] = None  # 's', 'l', 'g', 'aq' (default: None)
+    charge: Optional[int] = None  # e.g. +2, -1, etc.
+
+    def __init__(self, formula_or_comp: Union[str, Dict[str, int]]):
+        # accept either a formula string (possibly with charge) or a dict
+        self.input_formula = None
+        self.charge: Optional[int] = None
+
         # accept either a formula string or a pre-built composition dict
         if isinstance(formula_or_comp, str):
-            self.input_formula = formula_or_comp
-            self.composition = parse_formula(formula_or_comp)
+            inp = formula_or_comp.strip()
+            m = Compound._ion_re.match(inp)
+            if m:
+                # split out the formula part from the charge part
+                raw, ch = m.group("formula"), m.group("charge")
+                # unify +/− signs, parse into integer
+                ch_norm = ch.replace('⁺','+').replace('⁻','-')
+                # handle e.g. "+", "2+" or "-","3-"
+                if ch_norm in ('+','-'):
+                    val = 1 if ch_norm=='+' else -1
+                else:
+                    # e.g. "2+", "3-"
+                    num, sign = re.match(r'(\d+)([+\-])', ch_norm).groups()
+                    val = int(num) * (1 if sign=='+' else -1)
+                self.charge = val
+                inp = raw
+            self.input_formula = inp
+            self.composition = parse_formula(inp)
         else:
             self.composition = dict(formula_or_comp)
         self.mass_g: Optional[float] = None
@@ -291,6 +323,54 @@ class Compound:
     def molar_mass(self) -> float:
         """Return M, the molar mass in g mol⁻¹."""
         return sum(PT[el].atomic_mass * n for el, n in self.composition.items())
+
+    @property
+    def bond_types(self) -> list[str]:
+        """Guess bond types: metallic, ionic, covalent (polar/nonpolar), H-bonding."""
+        elems = set(self.composition)
+        nonm = { *self._COVALENT_NONMETALS, "He","Ne","Ar","Kr","Xe","Rn","Og" }
+
+        types: list[str] = []
+
+        # single‐element “compound” (O2, Fe, etc.)
+        if len(elems)==1:
+            el = next(iter(elems))
+            if el not in nonm:
+                types.append("Metallic")
+            else:
+                types.append("Nonpolar covalent")
+            # still check H-bonding if it’s H2?
+            if el=="H":
+                types.append("Hydrogen-bond donor")
+            return types
+
+        # Ionic: metal + nonmetal
+        if elems & nonm and elems - nonm:
+            types.append("Ionic")
+        # Metallic clusters (all metal)
+        elif not (elems & nonm):
+            types.append("Metallic")
+        # Covalent (all nonmetal)
+        else:
+            # estimate polarity by max EN diff among bonded pairs
+            maxdiff = 0.0
+            for a in elems:
+                for b in elems:
+                    if a==b: continue
+                    en_a = Compound._EN.get(a)
+                    en_b = Compound._EN.get(b)
+                    if en_a and en_b:
+                        maxdiff = max(maxdiff, abs(en_a-en_b))
+            if maxdiff < 0.5:
+                types.append("Nonpolar covalent")
+            else:
+                types.append("Polar covalent")
+
+        # Hydrogen‐bond capability?
+        if "H" in elems and elems & {"N","O","F"}:
+            types.append("Hydrogen-bond donor/acceptor")
+
+        return types
 
     @staticmethod
     def _anion_name(el_name: str) -> str:
@@ -319,6 +399,53 @@ class Compound:
                 res += sym
                 num -= val
         return res
+
+    @staticmethod
+    def _element_type(symbol: str) -> Optional[str]:
+        el = PT[symbol]
+        z, g = el.atomic_number, el.group
+
+        # special cases
+        if z == 1:
+            return "nonmetal"
+
+        # f-block
+        if 57 <= z <= 71:
+            return "lanthanoid"
+        if 89 <= z <= 103:
+            return "actinoid"
+
+        # s-block
+        if g == 1:
+            return "alkali metal"
+        if g == 2:
+            return "alkaline earth metal"
+
+        # d-block
+        if 3 <= g <= 12:
+            return "transition metal"
+
+        # p-block metals
+        post = {"Al","Ga","In","Sn","Tl","Pb","Bi","Nh","Fl","Mc","Lv"}
+        if symbol in post:
+            return "post-transition metal"
+
+        # metalloids
+        met = {"B","Si","Ge","As","Sb","Te","Po"}
+        if symbol in met:
+            return "metalloid"
+
+        # remaining p-block nonmetals
+        if symbol in {"C","N","O","P","S","Se"}:
+            return "nonmetal"
+
+        # group-based nonmetals
+        if g == 17:
+            return "halogen"
+        if g == 18:
+            return "noble gas"
+
+        return None
 
     def set_mass(self, grams: float) -> None:
         self.mass_g = grams
@@ -407,18 +534,29 @@ class Compound:
         comp = self.composition
         elems = list(comp.items())  # [(symbol, count), ...]
 
+        if len(comp)==1 and self.charge is not None:
+            el = next(iter(comp))
+            base = PT[el].name.capitalize()
+            z = abs(self.charge)
+            # cation: e.g. Fe2+ → Iron(II)
+            if self.charge>0:
+                return f"{base}({self._to_roman(z)})"
+            # anion: e.g. Cl− → Chloride
+            else:
+                root = self._anion_name(PT[el].name).capitalize()
+                return root
+
+        # Otherwise, if it’s a neutral element (no charge) and you still want types:
+        if len(comp)==1 and self.charge is None:
+            el = next(iter(comp))
+            base = PT[el].name.capitalize()
+            et = self._element_type(el)
+            return f"{base} ({et})" if et else base
+
         if self.input_formula in self._KNOWN_COMPOUNDS:
             return self._KNOWN_COMPOUNDS[self.input_formula].capitalize()
 
-        if len(comp) == 1:
-            # Single element compounds (e.g. "Au")
-            el = next(iter(comp))
-            if el in PT:
-                return PT[el].name.capitalize()
-            else:
-                raise ValueError(f"Unknown element symbol '{el}' in formula '{self.input_formula}'")
-
-        # 1) Pure covalent: both atoms are in the covalent-nonmetal list
+        # Pure covalent: both atoms are in the covalent-nonmetal list
         if (len(comp) == 2
             and all(el in self._COVALENT_NONMETALS for el in comp)):
             elems = list(comp.items())
@@ -439,7 +577,7 @@ class Compound:
             return " ".join(parts).capitalize()
 
 
-        # 2) Polyatomic ionic salts
+        # Polyatomic ionic salts
         for formula, ion_name in self._POLYATOMIC_IONS.items():
             anion_comp = parse_formula(formula)
             if all(comp.get(e,0) >= n for e,n in anion_comp.items()):
@@ -454,7 +592,7 @@ class Compound:
                     ox_cat = -(n_an*charge_an)//n_cat
                     return f"{PT[cation].name}({self._to_roman(ox_cat)}) {ion_name}"
 
-        # 3) Simple binary ionic
+        # Simple binary ionic
         if len(elems) == 2:
             (cat, n_cat), (an, n_an) = elems
             # guess anion charge from a small lookup or group‐rule
@@ -474,11 +612,13 @@ class Compound:
     def display(self) -> None:
         """Pretty-print all available info about this compound, including generated name and atom count."""
         print(f"Name:         {self.name()}")
+        print(f"Bond type(s): {', '.join(self.bond_types)}")
         print(f"Formula:      {self.formula()}")
         print(f"Molar mass:   {self.molar_mass:.4f} g/mol")
         # show atom count per formula unit
         print(f"Atom count:   {self.element_atom_count()} atoms/unit")
-        print(f"Total units:  {self.total_formula_units():.2e} formula units"
+        if self.amount_mol is not None:
+            print(f"Total units:  {self.total_formula_units():.2e} formula units"
               f" ({self.total_atoms():.2e} atoms in total)")
         if self.mass_g is not None:
             print(f"Mass:         {self.mass_g:.4f} g")
