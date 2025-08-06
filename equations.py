@@ -1,3 +1,4 @@
+from itertools import product
 from sympy import Matrix
 from typing import Dict, List, Tuple
 from math import gcd, inf
@@ -118,7 +119,15 @@ class ChemicalEquation:
         if not nulls:
             raise ValueError("Cannot balance equation: no nullspace basis.")
 
-        vec = nulls[0]
+        if len(nulls) == 1:
+            vec = nulls[0]
+        else:
+            for a,b in product(range(1,10), repeat=2):
+                v = a*nulls[0] + b*nulls[1]
+                if all(x>0 for x in v):
+                    vec = v
+                    break
+
         # clear denominators
         dens = [v.q for v in vec]
         def lcm(a: int, b: int) -> int:
@@ -336,50 +345,43 @@ class ChemicalEquation:
 
         return f"{part(lhs, lcoeffs)} -> {part(rhs, rcoeffs)}"
 
-    def theoretical_yield(self,
-                          given: Dict[Compound, float],
-                          given_in_mass: bool = False
-                          ) -> Dict[Compound, Tuple[float, float]]:
+    def theoretical_yield(self, given: Dict[Compound, float],
+                      given_in_mass: bool = False
+                     ) -> Tuple[Compound, Dict[Compound, Tuple[float, float]]]:
         """
-        given: map each reactant Compound to an amount (mass in g or moles).
-        given_in_mass: if True, the values in `given` are grams, otherwise moles.
+        Returns:
+        - limiting_reagent (Compound)
+        - yields: dict mapping each product to (mol, grams) theoretical yield
+        """
 
-        Returns a dict mapping each product Compound to (moles, grams)
-        of theoretical yield, based on the limiting reagent.
-        """
-        # 1) Balance and get stoichiometric coefficients
         r_coeffs, p_coeffs = self.balance()
-        # 2) Convert given → moles of each reactant
         avail_mol = {}
         for cmpd, qty in given.items():
             if given_in_mass:
-                cmpd.set_mass(qty)     # sets cmpd.amount_mol
+                cmpd.set_mass(qty)
                 avail_mol[cmpd] = cmpd.amount_mol
             else:
-                cmpd.set_moles(qty)    # sets cmpd.mass_g
+                cmpd.set_moles(qty)
                 avail_mol[cmpd] = qty
 
-        # 3) Compute how many "reaction units" each reactant can run
-        #    i.e. avail_mol / its stoich coeff.  Any unlabeled reactant is 'in excess'
-
-        rxn_units = []
+        rxn_units = {}
         for cmpd, coeff in zip(self.reactants, r_coeffs):
             if coeff == 0:
                 continue
-            available = avail_mol.get(cmpd, inf)
-            rxn_units.append(available / coeff)
+            available = avail_mol.get(cmpd, float('inf'))
+            rxn_units[cmpd] = available / coeff
 
-        # 4) limiting reagent: smallest number of reaction units
-        max_rxn = min(rxn_units)
+        limiting = min(rxn_units, key=rxn_units.get)
+        max_rxn = rxn_units[limiting]
 
-        # 5) For each product, compute produced moles = max_rxn * coeff
-        yields: Dict[Compound, Tuple[float, float]] = {}
+        yields = {}
         for prod, coeff in zip(self.products, p_coeffs):
             prod_mol = max_rxn * coeff
             prod_mass = prod_mol * prod.molar_mass
             yields[prod] = (prod_mol, prod_mass)
 
-        return yields
+        return limiting, yields
+
 
     def __str__(self) -> str:
         """

@@ -2,7 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, Optional, Union
 import re
-
+import gases
 
 @dataclass(frozen=True)
 class Element:
@@ -207,6 +207,7 @@ def parse_formula(formula: str) -> Dict[str, int]:
 
 class Compound:
     """Represents a chemical compound with optional mass / mol information."""
+    AVOGADRO = 6.02214076e23
 
     _COVALENT_NONMETALS = {'H','C','N','O','F','P','S','Cl','Se','Br','I'}
 
@@ -455,6 +456,19 @@ class Compound:
         self.amount_mol = moles
         self.mass_g = moles * self.molar_mass
 
+    def set_molecules(self, n_molecules: float) -> None:
+        """
+        Given a number of molecules, set:
+         - self.amount_mol
+         - self.mass_g
+        """
+        # 1) molecules → moles
+        mol = n_molecules / Compound.AVOGADRO
+        # 2) store it
+        self.amount_mol = mol
+        # 3) compute the corresponding mass
+        self.mass_g     = mol * self.molar_mass
+
     def element_atom_count(self) -> int:
         """Return total number of atoms in one formula unit."""
         return sum(self.composition.values())
@@ -463,7 +477,7 @@ class Compound:
         """Return number of formula units (mol × Avogadro's number)."""
         if self.amount_mol is None:
             raise ValueError("Set mass or moles first.")
-        return self.amount_mol * 6.02214076e23
+        return self.amount_mol * self.AVOGADRO
 
     def total_atoms(self) -> float:
         """Return total atoms in the current sample."""
@@ -607,6 +621,72 @@ class Compound:
             return f"{PT[cat].name}({self._to_roman(ox_cat)}) {self._anion_name(PT[an].name)}"
 
         raise NotImplementedError("Cannot generate name for this compound.")
+
+    def volume(self,
+               T: float, p: float,
+               T_unit: str = "C",
+               p_unit: str = "bar",
+               V_unit: str = "L") -> float:
+        """
+        Compute V from PV = nRT.
+        - n in mol
+        - T in °C or K
+        - p in bar, atm, Pa, …
+        Returns volume in L, mL, m3, …
+        """
+        if self.amount_mol is None:
+            raise ValueError("Set mass or moles first")
+        return gases.ideal_gas_volume(
+            n        = self.amount_mol,
+            T        = T,
+            p        = p,
+            T_unit   = T_unit,
+            p_unit   = p_unit,
+            V_unit   = V_unit,
+        )
+
+    def pressure(self,
+                 T: float,
+                 V: float,
+                 T_unit: str = "C",
+                 V_unit: str = "L",
+                 p_unit: str = "bar") -> float:
+        """
+        Compute P from PV = nRT.
+        - n in mol
+        - T in °C or K
+        - V in L, mL, m3, …
+        Returns pressure in bar, atm, Pa, …
+        """
+
+        if self.amount_mol is None:
+            raise ValueError("Set mass or moles first")
+        return gases.ideal_gas_pressure(
+            n       = self.amount_mol,
+            T       = T,
+            V       = V,
+            T_unit  = T_unit,
+            V_unit  = V_unit,
+            p_unit  = p_unit,
+        )
+
+    def temperature(self,
+                    P: float, V: float,
+                    p_unit: str = "bar",
+                    V_unit: str = "L",
+                    T_unit: str = "C") -> float:
+        """
+        Compute T from PV = nRT for this compound.
+        """
+        if self.amount_mol is None:
+            raise ValueError("Set mass or moles first")
+        return gases.ideal_gas_temperature(
+            self.amount_mol,
+            P, V,
+            p_unit=p_unit,
+            V_unit=V_unit,
+            T_unit=T_unit
+        )
 
 
     def display(self) -> None:
