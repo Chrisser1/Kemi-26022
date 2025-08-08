@@ -162,3 +162,59 @@ def ideal_gas_temperature(n: float,
         return T_k
     else:
         raise ValueError(f"Unknown temperature unit '{T_unit}'")
+
+def ideal_gas_moles(P: float,
+                    V: float,
+                    T: float,
+                    p_unit: str = "bar",
+                    V_unit: str = "L",
+                    T_unit: str = "C") -> float:
+    """
+    Solve n from PV = nRT
+      - P in bar, atm, Pa, …
+      - V in L, mL, m3, …
+      - T in °C or K
+    Returns n in mol.
+    """
+    P_bar = _to_bar(P, p_unit)
+    V_l   = _to_litre(V, V_unit)
+    if T_unit.lower()=="c":
+        T_k = c_to_k(T)
+    elif T_unit.lower()=="k":
+        T_k = T
+    else:
+        raise ValueError(f"Unknown T unit {T_unit!r}")
+
+    # 2) n = P V / (R T)
+    return P_bar * V_l / (R_BAR * T_k)
+
+def convert_pressure(value: float,
+                     from_unit: str,
+                     to_unit: str) -> float:
+    """
+    Convert a pressure from one unit to another.
+      - value: numeric pressure
+      - from_unit: any of 'bar','atm','Pa','kPa','torr','mmHg','psi', etc.
+      - to_unit:   same possible units
+    Returns the converted pressure.
+    """
+    # 1) send it to bar
+    p_bar = _to_bar(value, from_unit)
+    # 2) back out to the target unit
+    return _from_bar(p_bar, to_unit)
+
+
+def convert_volume(value: float,
+                   from_unit: str,
+                   to_unit: str) -> float:
+    """
+    Convert a volume from one unit to another.
+      - value: numeric volume
+      - from_unit: 'L','mL','m3','cm3',…
+      - to_unit:   same possible units
+    Returns the converted volume.
+    """
+    # 1) send it to litres
+    v_L = _to_litre(value, from_unit)
+    # 2) back out to the target unit
+    return _from_litre(v_L, to_unit)

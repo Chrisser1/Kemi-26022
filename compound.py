@@ -623,7 +623,7 @@ class Compound:
         raise NotImplementedError("Cannot generate name for this compound.")
 
     def volume(self,
-               T: float, p: float,
+               T: float, P: float,
                T_unit: str = "C",
                p_unit: str = "bar",
                V_unit: str = "L") -> float:
@@ -639,7 +639,7 @@ class Compound:
         return gases.ideal_gas_volume(
             n        = self.amount_mol,
             T        = T,
-            p        = p,
+            p        = P,
             T_unit   = T_unit,
             p_unit   = p_unit,
             V_unit   = V_unit,
@@ -705,12 +705,19 @@ class Compound:
         if self.amount_mol is not None:
             print(f"Amount:       {self.amount_mol:.6f} mol")
 
+    def __eq__(self, other):
+        if not isinstance(other, Compound):
+            return False
+        return (self.formula(), self.phase, self.charge) == \
+               (other.formula(), other.phase, other.charge)
 
-    def __repr__(self) -> str:
-        extra = []
-        if self.mass_g is not None:
-            extra.append(f"{self.mass_g} g")
-        if self.amount_mol is not None:
-            extra.append(f"{self.amount_mol} mol")
-        extras = ", ".join(extra)
-        return f"<Compound {self.formula()} ({extras})>"
+    def __hash__(self):
+        return hash((self.formula(), self.phase, self.charge))
+
+    def __repr__(self):
+        parts = [f"formula={self.formula()}"]
+        if self.charge  is not None: parts.append(f"charge={self.charge}")
+        if self.phase   is not None: parts.append(f"phase='{self.phase}'")
+        if self.mass_g  is not None: parts.append(f"{self.mass_g} g")
+        if self.amount_mol is not None: parts.append(f"{self.amount_mol} mol")
+        return "<Compound " + ", ".join(parts) + ">"
