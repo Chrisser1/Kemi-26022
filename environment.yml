@@ -11,3 +11,4 @@ dependencies:
       - matplotlib
       - pandas
       - beautifulsoup4
+      - jupyter notebook -U
