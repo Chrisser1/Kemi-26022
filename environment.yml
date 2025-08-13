@@ -4,6 +4,10 @@ channels:
   - defaults
 dependencies:
   - python=3.13
+  - jupyterlab
+  - notebook
+  - ipykernel
+  - ipywidgets
   - pip
   - pip:
       - sympy
@@ -11,4 +15,3 @@ dependencies:
       - matplotlib
       - pandas
       - beautifulsoup4
-      - jupyter notebook -U

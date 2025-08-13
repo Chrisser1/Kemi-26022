@@ -625,7 +625,7 @@ class Compound:
     def volume(self,
                T: float, P: float,
                T_unit: str = "C",
-               p_unit: str = "bar",
+               P_unit: str = "bar",
                V_unit: str = "L") -> float:
         """
         Compute V from PV = nRT.
@@ -641,7 +641,7 @@ class Compound:
             T        = T,
             p        = P,
             T_unit   = T_unit,
-            p_unit   = p_unit,
+            P_unit   = P_unit,
             V_unit   = V_unit,
         )
 

@@ -51,7 +51,7 @@ def ideal_gas_volume(n: float,
                      T: float,
                      p: float,
                      T_unit: str = "C",
-                     p_unit: str = "bar",
+                     P_unit: str = "bar",
                      V_unit: str = "L") -> float:
     """
     Compute V from PV = nRT.
@@ -67,7 +67,7 @@ def ideal_gas_volume(n: float,
     else:
         raise ValueError(f"Unknown temperature unit '{T_unit}'")
 
-    p_bar = _to_bar(p, p_unit)
+    p_bar = _to_bar(p, P_unit)
     V_l   = n * R_BAR * T_k / p_bar
     return _from_litre(V_l, V_unit)
 
@@ -218,3 +218,89 @@ def convert_volume(value: float,
     v_L = _to_litre(value, from_unit)
     # 2) back out to the target unit
     return _from_litre(v_L, to_unit)
+
+def component_moles(total_moles: float, mole_fraction: float) -> float:
+    """
+    Calculate the moles of a component in a mixture from its mole fraction.
+    
+    - total_moles: The total number of moles in the gas mixture.
+    - mole_fraction: The mole fraction of the component of interest.
+    Returns the number of moles of the component.
+    """
+    return total_moles * mole_fraction
+
+def mole_fraction(component_moles: float, total_moles: float) -> float:
+    """
+    Calculate the mole fraction of a component in a mixture.
+    
+    - component_moles: The number of moles of the component of interest.
+    - total_moles: The total number of moles in the gas mixture.
+    Returns the mole fraction of the component.
+    """
+    if total_moles == 0:
+        return 0
+    return component_moles / total_moles
+
+def ideal_gas_molar_mass(density: float,
+                         T: float,
+                         P: float,
+                         density_unit: str = "g/L",
+                         T_unit: str = "K",
+                         P_unit: str = "bar") -> float:
+    """
+    Calculate molar mass from density using the Ideal Gas Law.
+    
+    Returns molar mass in g/mol.
+    """
+    # Convert inputs to standard units (L, K, bar)
+    V_unit_part = density_unit.split('/')[-1]
+    V_for_density = _to_litre(1.0, V_unit_part)
+    density_g_per_L = density / V_for_density
+    
+    if T_unit.lower() == "c":
+        T_k = c_to_k(T)
+    else:
+        T_k = T
+        
+    p_bar = _to_bar(P, P_unit)
+
+    # M = (rho * R * T) / P
+    molar_mass = (density_g_per_L * R_BAR * T_k) / p_bar
+    return molar_mass
+
+def partial_pressure(component_moles: float, 
+                     total_moles: float, 
+                     total_pressure: float) -> float:
+    """
+    Calculates the partial pressure of a component in a gas mixture.
+    
+    - component_moles: Moles of the gas of interest.
+    - total_moles: Total moles of gas in the mixture.
+    - total_pressure: The total pressure of the mixture (in any unit).
+    Returns the partial pressure in the same unit as the total pressure.
+    """
+    # This function assumes 'mole_fraction' is also in gases.py
+    x = mole_fraction(component_moles, total_moles)
+    return x * total_pressure
+
+def ideal_gas_density(molar_mass: float,
+                      T: float,
+                      P: float,
+                      T_unit: str = "K",
+                      p_unit: str = "bar") -> float:
+    """
+    Calculate gas density from molar mass using the Ideal Gas Law.
+    
+    Returns density in g/L.
+    """
+    # Convert inputs to standard units (K, bar)
+    if T_unit.lower() == "c":
+        T_k = c_to_k(T)
+    else:
+        T_k = T
+        
+    p_bar = _to_bar(P, p_unit)
+
+    # rho = (P * M) / (R * T)
+    density = (p_bar * molar_mass) / (R_BAR * T_k)
+    return density
