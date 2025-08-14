@@ -1,6 +1,9 @@
 # molecular_structure.py
 
-from typing import Dict
+import re
+from typing import Dict, Tuple
+
+from compound import PT, Compound
 
 def estimate_reaction_enthalpy(
     bonds_broken: Dict[str, int],
@@ -25,3 +28,174 @@ def estimate_reaction_enthalpy(
         return energy_in - energy_out
     except KeyError as e:
         raise ValueError(f"Energy for bond '{e}' not found in the provided bond_energies dictionary.")
+
+# --- Data for VSEPR Theory ---
+VALENCE_ELECTRONS = {el.symbol: (el.group if el.group <= 2 else el.group - 10) for el in PT.values() if el.group is not None}
+# Halogens contribute 1 electron for bonding
+BONDING_ELECTRONS = {'F': 1, 'Cl': 1, 'Br': 1, 'I': 1, 'H': 1, 'O': 2} 
+
+VSEPR_GEOMETRIES = {
+    2: {0: ("Linear", "Linear")},
+    3: {0: ("Trigonal Planar", "Trigonal Planar"), 1: ("Trigonal Planar", "Bent")},
+    4: {0: ("Tetrahedral", "Tetrahedral"), 1: ("Tetrahedral", "Trigonal Pyramidal"), 2: ("Tetrahedral", "Bent")},
+    5: {0: ("Trigonal Bipyramidal", "Trigonal Bipyramidal"), 1: ("Trigonal Bipyramidal", "Seesaw"), 2: ("Trigonal Bipyramidal", "T-shaped"), 3: ("Trigonal Bipyramidal", "Linear")},
+    6: {0: ("Octahedral", "Octahedral"), 1: ("Octahedral", "Square Pyramidal"), 2: ("Octahedral", "Square Planar")}
+}
+
+# --- VSEPR Function ---
+
+# NEW: A dictionary for how many electrons surrounding atoms typically accept in bonds.
+ELECTRONS_ACCEPTED_IN_BONDS = {'F': 1, 'Cl': 1, 'Br': 1, 'I': 1, 'H': 1, 'O': 2}
+
+def predict_molecular_geometry(compound_formula: str) -> Tuple[str, str, int, int]:
+    """
+    Predicts the molecular geometry of a simple compound using VSEPR theory.
+    (Corrected Version)
+    """
+    c = Compound(compound_formula)
+    
+    if not c.composition:
+        raise ValueError("Cannot parse compound formula.")
+    
+    central_atom = min(c.composition, key=c.composition.get)
+    surrounding_atoms = {el: count for el, count in c.composition.items() if el != central_atom}
+    
+    # --- Corrected Logic ---
+    central_valence_e = VALENCE_ELECTRONS.get(central_atom, 0)
+    bonding_pairs = sum(surrounding_atoms.values())
+    
+    # Calculate electrons from the central atom used for bonding
+    electrons_used_in_bonding = sum(ELECTRONS_ACCEPTED_IN_BONDS.get(el, 1) * count for el, count in surrounding_atoms.items())
+    
+    # Calculate lone pairs on the central atom
+    lone_pairs = (central_valence_e - electrons_used_in_bonding) // 2
+    
+    total_domains = bonding_pairs + lone_pairs
+    
+    try:
+        electron_geom, molecular_geom = VSEPR_GEOMETRIES[total_domains][lone_pairs]
+        return electron_geom, molecular_geom, bonding_pairs, lone_pairs
+    except KeyError:
+        raise NotImplementedError(f"Geometry for {total_domains} domains with {lone_pairs} lone pairs is not defined.")
+
+def _is_symmetrical(molecular_geom: str, surrounding_atoms: Dict[str, int]) -> bool:
+    """
+    A helper function to determine if a geometry is symmetrical,
+    considering if all surrounding atoms are the same.
+    """
+    symmetrical_geometries = [
+        "Linear", "Trigonal Planar", "Tetrahedral",
+        "Trigonal Bipyramidal", "Octahedral", "Square Planar"
+    ]
+    
+    # If the shape is inherently asymmetrical (like 'Bent' or 'Seesaw'), it's not symmetrical.
+    if molecular_geom not in symmetrical_geometries:
+        return False
+        
+    # If the shape is symmetrical, we then check if all surrounding atoms are identical.
+    # If there's more than one type of surrounding atom (e.g., CH₂Cl₂), it's not symmetrical.
+    if len(surrounding_atoms) > 1:
+        return False
+        
+    return True
+
+def analyze_molecular_properties(formula: str) -> str:
+    """
+    Provides a full VSEPR and polarity analysis for a molecule, including
+    quantitative bond polarity (ΔEN).
+    """
+    try:
+        c = Compound(formula)
+        atoms = list(c.composition.keys())
+        
+        # --- Handle Diatomic Molecules ---
+        if sum(c.composition.values()) == 2:
+            max_en_diff = 0.0
+            bond_summary = "Nonpolar Covalent"
+            polarity_summary = "Nonpolar"
+
+            if len(atoms) == 2: # Heteronuclear (e.g., HBr)
+                en_diff = abs(Compound._EN.get(atoms[0], 0) - Compound._EN.get(atoms[1], 0))
+                max_en_diff = en_diff
+                if en_diff > 0.4:
+                    bond_summary = "Polar Covalent"
+                    polarity_summary = "Polar"
+            
+            summary = (
+                f"--- Analysis for {formula} ---\n"
+                f"  - Note: This is a diatomic molecule.\n"
+                f"  - Molecular Geometry: Linear\n"
+                f"  - Bond Polarity: {bond_summary}\n"
+                f"  - Polarity: {polarity_summary}\n"
+                f"  - Max Bond ΔEN: {max_en_diff:.2f}"
+            )
+            return summary
+
+        # --- Logic for Polyatomic Molecules ---
+        electron_geom, molecular_geom, bp, lp = predict_molecular_geometry(formula)
+        central_atom = min(c.composition, key=c.composition.get)
+        surrounding_atoms = {el: count for el, count in c.composition.items() if el != central_atom}
+        
+        # --- Analyze Bond Polarity ---
+        max_en_diff = 0.0
+        for atom in surrounding_atoms.keys():
+            en_diff = abs(Compound._EN.get(central_atom, 0) - Compound._EN.get(atom, 0))
+            max_en_diff = max(max_en_diff, en_diff)
+        
+        bond_summary = "Polar Covalent" if max_en_diff > 0.4 else "Nonpolar Covalent"
+
+        # --- Determine Overall Polarity ---
+        symmetrical = _is_symmetrical(molecular_geom, surrounding_atoms)
+        is_nonpolar = (bond_summary == "Nonpolar Covalent") or symmetrical
+        polarity_summary = "Nonpolar" if is_nonpolar else "Polar"
+        
+        summary = (
+            f"--- Analysis for {formula} ---\n"
+            f"  - Central Atom: {central_atom}\n"
+            f"  - Bonding Pairs: {bp} | Lone Pairs: {lp}\n"
+            f"  - Electron Geometry: {electron_geom}\n"
+            f"  - Molecular Geometry: {molecular_geom}\n"
+            f"  - Symmetry: {'Symmetrical' if symmetrical else 'Asymmetrical'}\n"
+            f"  - Bond Polarity: {bond_summary}\n"
+            f"  - Polarity: {polarity_summary}\n"
+            f"  - Max Bond ΔEN: {max_en_diff:.2f}" # ADDED THIS LINE
+        )
+        return summary
+        
+    except (ValueError, NotImplementedError, KeyError) as e:
+        return f"Could not analyze {formula}: {e}"
+    
+def find_most_polar_molecule(formulas: list[str]) -> str:
+    """
+    Analyzes a list of molecules and identifies the one with the largest net dipole moment.
+    (Upgraded to quantitatively compare polar molecules)
+    """
+    results = {}
+    most_polar_molecule = None
+    max_en_diff = -1.0
+
+    for formula in formulas:
+        summary = analyze_molecular_properties(formula)
+        results[formula] = summary
+        
+        # Use regex to find the ΔEN value in the summary
+        match = re.search(r"Max Bond ΔEN: (\d+\.\d+)", summary)
+        if match:
+            en_diff = float(match.group(1))
+            if en_diff > max_en_diff:
+                max_en_diff = en_diff
+                most_polar_molecule = formula
+    
+    # --- Compile the final report ---
+    report = "--- Polarity Analysis Report ---\n\n"
+    for formula in formulas:
+        report += f"{results[formula]}\n\n"
+    
+    report += "--- Conclusion ---\n"
+    if most_polar_molecule and max_en_diff > 0.4:
+         report += (f"Based on the largest electronegativity difference (ΔEN = {max_en_diff:.2f}),\n"
+                   f"the molecule with the largest net dipole moment is {most_polar_molecule}.")
+    else:
+        report += "All molecules are nonpolar or have very low polarity."
+        
+    return report
