@@ -49,56 +49,75 @@ class ChemicalEquation:
 
     @staticmethod
     def _split_ions(cmpd: Compound, coeff: int):
-            # if it's not aqueous or already has an explicit charge, leave it alone
-            if cmpd.phase != "aq" or cmpd.charge is not None:
-                return [cmpd] * coeff
+        """
+        Splits an aqueous compound into its constituent ions with correct charges.
+        """
+        # If it's not an aqueous compound or already has a defined charge, do not split.
+        if cmpd.phase != "aq" or cmpd.charge is not None:
+            return [cmpd] * coeff
 
-            comp = cmpd.composition.copy()
-            ions: list[Compound] = []
+        comp = cmpd.composition.copy()
+        ions: list[Compound] = []
 
-            # 1) strip out any polyatomics exactly as before...
-            for poly in sorted(Compound._POLYATOMIC_IONS, key=len, reverse=True):
-                needed = parse_formula(poly)
-                count  = min(comp.get(el,0)//n for el,n in needed.items())
+        # 1. Handle known polyatomic ions first.
+        # (This part of the logic remains the same)
+        poly_found = False
+        for poly in sorted(Compound._POLYATOMIC_IONS, key=len, reverse=True):
+            needed = parse_formula(poly)
+            if all(comp.get(el, 0) >= n for el, n in needed.items()):
+                poly_found = True
+                count = min(comp.get(el, 0) // n for el, n in needed.items())
                 for _ in range(count):
-                    ion        = Compound(poly)
-                    ion.charge = Compound._ANION_CHARGES[poly]
-                    ion.phase  = "aq"
+                    ion = Compound(poly)
+                    ion.charge = Compound._ANION_CHARGES.get(poly)
+                    ion.phase = "aq"
                     ions.append(ion)
-                    for el,n in needed.items():
+                    for el, n in needed.items():
                         comp[el] -= n
                         if comp[el] == 0:
                             del comp[el]
+        
+        # 2. Handle the remaining atoms (either the cation for a polyatomic salt or a full binary salt).
+        if not poly_found:
+            # Logic for simple binary ionic compounds (e.g., SnCl2, FeCl2)
+            cation_part = {el: n for el, n in comp.items() if el not in Compound._NONMETALS}
+            anion_part = {el: n for el, n in comp.items() if el in Compound._NONMETALS}
 
-            # 2) if we found any polyatomics, charge‐balance the remainder
-            if ions:
-                total_anion_charge = sum(i.charge for i in ions)
-                total_cation_cnt   = sum(comp.values())
-                cat_charge = (- total_anion_charge) // total_cation_cnt if total_cation_cnt else 0
+            # Proceed if we have one metal and one non-metal part
+            if len(cation_part) == 1 and len(anion_part) == 1:
+                cation_sym, cation_count = list(cation_part.items())[0]
+                anion_sym, anion_count = list(anion_part.items())[0]
 
-                for el,n in comp.items():
-                    for _ in range(n):
-                        ion        = Compound(el)
-                        ion.charge = cat_charge
-                        ion.phase  = "aq"
-                        ions.append(ion)
+                # Determine anion charge from common rules (halogens are -1, group 16 are -2)
+                anion_charge = -1 if PT[anion_sym].group == 17 else -2
 
-            # 3) otherwise it was a simple binary salt → use group‐rule defaults
-            else:
-                for el,n in comp.items():
-                    for _ in range(n):
-                        if el in {"Cl","Br","I","F"}:
-                            ch = -1
-                        elif PT[el].group == 1:
-                            ch = +1
-                        else:
-                            ch = PT[el].group - 18
-                        ion        = Compound(el)
-                        ion.charge = ch
-                        ion.phase  = "aq"
-                        ions.append(ion)
+                # Calculate total negative charge from the anion(s)
+                total_negative_charge = anion_count * anion_charge
 
-            return ions * coeff
+                # The total positive charge must balance this out
+                cation_charge = abs(total_negative_charge) // cation_count
+
+                # Add the correctly charged cation ions
+                for _ in range(cation_count):
+                    ion = Compound(cation_sym); ion.charge = cation_charge; ion.phase = "aq"
+                    ions.append(ion)
+
+                # Add the correctly charged anion ions
+                for _ in range(anion_count):
+                    ion = Compound(anion_sym); ion.charge = anion_charge; ion.phase = "aq"
+                    ions.append(ion)
+        
+        # This logic handles what's left over after a polyatomic is removed
+        elif comp: 
+            total_anion_charge = sum(i.charge for i in ions if i.charge < 0)
+            cation_atoms = sum(comp.values())
+            cation_charge = abs(total_anion_charge) // cation_atoms if cation_atoms > 0 else 0
+            for el, n in comp.items():
+                for _ in range(n):
+                    ion = Compound(el); ion.charge = cation_charge; ion.phase = "aq"
+                    ions.append(ion)
+
+        return ions * coeff
 
     def balance(self) -> Tuple[List[int], List[int]]:
         """

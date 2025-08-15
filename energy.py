@@ -1,6 +1,7 @@
 # energy.py
 
 from collections import defaultdict
+import math
 import pandas as pd
 import re
 from typing import Dict, Sequence, Tuple
@@ -423,3 +424,57 @@ def entropy_of_phase_change(
     
     # 2. Calculate and return ΔS
     return delta_H_J / T_k
+
+def clausius_clapeyron_pressure(
+    P1: float,
+    T1_C: float,
+    T2_C: float,
+    delta_H_vap_kJ: float
+) -> float:
+    """
+    Calculates vapor pressure P2 at temperature T2 using the Clausius-Clapeyron equation.
+    
+    Args:
+        P1: Known pressure (e.g., in mmHg or atm) at T1.
+        T1_C: Known temperature in Celsius.
+        T2_C: Target temperature in Celsius.
+        delta_H_vap_kJ: Enthalpy of vaporization in kJ/mol.
+        
+    Returns:
+        The new pressure P2 in the same units as P1.
+    """
+    R = 8.314  # J/(mol*K)
+    
+    # Convert units
+    T1_K = T1_C + 273.15
+    T2_K = T2_C + 273.15
+    delta_H_vap_J = delta_H_vap_kJ * 1000
+    
+    # Clausius-Clapeyron equation
+    ln_P2_over_P1 = (-delta_H_vap_J / R) * (1/T2_K - 1/T1_K)
+    
+    P2 = P1 * math.exp(ln_P2_over_P1)
+    return P2
+
+def clausius_clapeyron_temperature(
+    P1: float,
+    T1_C: float,
+    P2: float,
+    delta_H_vap_kJ: float
+) -> float:
+    """
+    Calculates temperature T2 at which a substance boils at pressure P2.
+    """
+    R = 8.314  # J/(mol*K)
+    
+    # Convert units
+    T1_K = T1_C + 273.15
+    delta_H_vap_J = delta_H_vap_kJ * 1000
+    
+    # Rearranged Clausius-Clapeyron equation
+    inv_T2 = (1/T1_K) - (R / delta_H_vap_J) * math.log(P2 / P1)
+    
+    T2_K = 1 / inv_T2
+    
+    # Convert back to Celsius and return
+    return T2_K - 273.15

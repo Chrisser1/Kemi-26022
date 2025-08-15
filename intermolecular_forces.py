@@ -1,7 +1,6 @@
-# intermolecular_forces.py
-
+import re
 from compound import Compound
-from molecular_structure import predict_molecular_properties # Assuming this is in the same directory
+from molecular_structure import analyze_molecular_properties # CORRECTED IMPORT
 
 # A dictionary to rank IMF strength
 IMF_STRENGTH = {
@@ -12,29 +11,36 @@ IMF_STRENGTH = {
 
 def get_predominant_imf(formula: str) -> tuple[str, float]:
     """
-    Determines the predominant intermolecular force for a given molecule.
+    Determines the predominant intermolecular force for a given molecule by parsing
+    the analysis string.
     Returns the IMF type and a secondary ranking metric (molar mass or ΔEN).
     """
-    # Use the detailed analysis function we built
-    analysis = predict_molecular_properties(formula)
-    
-    # Check for Hydrogen Bonding condition
+    analysis = analyze_molecular_properties(formula)
     c = Compound(formula)
-    has_h = "H" in c.composition
-    has_nof = any(x in c.composition for x in ["N", "O", "F"])
-    # This is a simplification; we'd need to know the actual bonds for a perfect check
-    # But for simple molecules like NH3, H2O, HF it works.
-    
+
+    # --- Determine Polarity from the analysis string ---
     is_polar = "Polarity: Polar" in analysis
     
-    if has_h and has_nof and is_polar:
-        # For H-bonders, the secondary metric is electronegativity difference
-        return "Hydrogen Bonding", analysis["max_en_diff"]
+    # --- Check for Hydrogen Bonding ---
+    # Condition: H is present and bonded to N, O, or F.
+    has_h = "H" in c.composition
+    has_nof = any(x in ["N", "O", "F"] for x in c.composition)
+    # A simple check for molecules like NH3, H2O, HF
+    can_h_bond = has_h and has_nof and is_polar
+
+    # --- Extract ΔEN for ranking polar molecules ---
+    max_en_diff = 0.0
+    match = re.search(r"Max Bond ΔEN: (\d+\.\d+)", analysis)
+    if match:
+        max_en_diff = float(match.group(1))
+
+    # --- Assign the predominant IMF ---
+    if can_h_bond:
+        return "Hydrogen Bonding", max_en_diff
     elif is_polar:
-        # For other polar molecules, the secondary metric is also ΔEN
-        return "Dipole-Dipole", analysis["max_en_diff"]
+        return "Dipole-Dipole", max_en_diff
     else:
-        # For nonpolar molecules, the secondary metric is molar mass
+        # For nonpolar molecules, the ranking metric is molar mass
         return "London Dispersion Forces", c.molar_mass
 
 def rank_by_boiling_point(formulas: list[str]) -> str:
@@ -51,7 +57,7 @@ def rank_by_boiling_point(formulas: list[str]) -> str:
             "metric": metric
         })
     
-    # Sort first by IMF strength, then by the secondary metric (molar mass or ΔEN)
+    # Sort first by IMF strength, then by the secondary metric
     ranked_molecules.sort(key=lambda x: (x["strength"], x["metric"]))
     
     ranked_list = [m["formula"] for m in ranked_molecules]

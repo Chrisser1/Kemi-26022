@@ -1,5 +1,3 @@
-# solubility.py
-
 import re
 from typing import Tuple
 from compound import Compound
