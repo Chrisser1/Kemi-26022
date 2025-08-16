@@ -299,7 +299,7 @@ class Compound:
 
     phase: Optional[str] = None  # 's', 'l', 'g', 'aq' (default: None)
     charge: Optional[int] = None  # e.g. +2, -1, etc.
-
+    
     def __init__(self, formula_or_comp: Union[str, Dict[str, int]]):
         # accept either a formula string (possibly with charge) or a dict
         self.input_formula = None
@@ -329,6 +329,8 @@ class Compound:
             self.composition = dict(formula_or_comp)
         self.mass_g: Optional[float] = None
         self.amount_mol: Optional[float] = None
+        self.volume_L: Optional[float] = None
+        self.molarity_M: Optional[float] = None
 
     @classmethod
     def from_formula(cls,
@@ -464,13 +466,29 @@ class Compound:
 
         return None
 
+    def _update_molarity(self):
+        """Internal helper to calculate molarity if moles and volume are known."""
+        if self.amount_mol is not None and self.volume_L is not None:
+            if self.volume_L == None:
+                self.molarity_M = self.amount_mol / 1.0  # assume 1 L if volume not set
+            else:
+                self.molarity_M = self.amount_mol / self.volume_L
+
     def set_mass(self, grams: float) -> None:
         self.mass_g = grams
         self.amount_mol = grams / self.molar_mass
+        self._update_molarity() # --- ADDED ---
 
     def set_moles(self, moles: float) -> None:
         self.amount_mol = moles
         self.mass_g = moles * self.molar_mass
+        self._update_molarity() # --- ADDED ---
+    
+    # --- NEW: Method to set the volume of the solution ---
+    def set_volume(self, volume: float, unit: str = 'L') -> None:
+        """Sets the solution volume and calculates molarity if moles are known."""
+        self.volume_L = gases._to_litre(volume, unit)
+        self._update_molarity()
 
     def set_molecules(self, n_molecules: float) -> None:
         """
@@ -706,20 +724,20 @@ class Compound:
 
 
     def display(self) -> None:
-        """Pretty-print all available info about this compound, including generated name and atom count."""
+        """Pretty-print all available info about this compound."""
         print(f"Name:         {self.name()}")
-        print(f"Bond type(s): {', '.join(self.bond_types)}")
         print(f"Formula:      {self.formula()}")
         print(f"Molar mass:   {self.molar_mass:.4f} g/mol")
-        # show atom count per formula unit
-        print(f"Atom count:   {self.element_atom_count()} atoms/unit")
-        if self.amount_mol is not None:
-            print(f"Total units:  {self.total_formula_units():.2e} formula units"
-              f" ({self.total_atoms():.2e} atoms in total)")
-        if self.mass_g is not None:
-            print(f"Mass:         {self.mass_g:.4f} g")
         if self.amount_mol is not None:
             print(f"Amount:       {self.amount_mol:.6f} mol")
+        if self.mass_g is not None:
+            print(f"Mass:         {self.mass_g:.4f} g")
+        
+        # --- NEW: Display solution properties if available ---
+        if self.volume_L is not None:
+            print(f"Volume:       {self.volume_L:.3f} L")
+        if self.molarity_M is not None:
+            print(f"Molarity:     {self.molarity_M:.3f} M")
 
     def __eq__(self, other):
         if not isinstance(other, Compound):
