@@ -1,5 +1,6 @@
 # solutions.py
 
+from typing import List, Tuple
 from compound import Compound
 import re
 
@@ -42,32 +43,16 @@ def analyze_van_hoff_factor(formula: str) -> str:
     except Exception as e:
         return f"Could not analyze {formula}: {e}"
     
+
 def calculate_total_ion_concentration(formula: str, molarity: float) -> float:
     """
     Calculates the total ion concentration for a given ionic solution,
-    assuming ideal (complete) dissociation.
+    assuming ideal (complete) dissociation. (Corrected Version)
     """
-    # --- Logic to find the ideal van't Hoff factor (i) ---
-    # Count polyatomic ions first
-    polyatomic_ions = ['NH4', 'OH', 'NO3', 'SO4', 'CO3', 'PO4']
-    ion_count = 0
-    temp_formula = formula
-    for ion in polyatomic_ions:
-        if ion in temp_formula:
-            # This simple logic assumes the polyatomic ion appears once.
-            # A more advanced version would parse coefficients.
-            ion_count += 1
-            temp_formula = temp_formula.replace(ion, "")
+    # Use the robust helper function to get the correct van't Hoff factor
+    ideal_factor = _get_ideal_van_hoff_factor(formula)
     
-    # Count the number of uppercase letters to find monatomic ions
-    # and then parse any numbers that follow them.
-    for match in re.finditer(r'([A-Z][a-z]*)(\d*)', temp_formula):
-        element, count = match.groups()
-        ion_count += int(count) if count else 1
-            
-    ideal_factor = ion_count
-    
-    # --- Calculate and return the total concentration ---
+    # Calculate and return the total concentration
     return molarity * ideal_factor
 
 def calculate_specific_ion_concentration(
@@ -117,20 +102,49 @@ def raoults_law_mole_fraction_solvent(p_solution: float, p_solvent_pure: float) 
     return p_solution / p_solvent_pure
 
 def _get_ideal_van_hoff_factor(formula: str) -> int:
-    """Helper function to calculate the ideal van't Hoff factor."""
-    polyatomic_ions = ['NH4', 'OH', 'NO3', 'SO4', 'CO3', 'PO4']
+    """
+    Calculates the ideal van't Hoff factor (i) by correctly identifying
+    polyatomic and monatomic ions in a formula. (Fully Corrected Version)
+    """
+    c = Compound(formula)
+    composition = c.composition.copy()
     ion_count = 0
-    temp_formula = formula
-    for ion in polyatomic_ions:
-        if ion in temp_formula:
-            ion_count += 1
-            temp_formula = temp_formula.replace(ion, "", 1)
     
-    for match in re.finditer(r'([A-Z][a-z]*)(\d*)', temp_formula):
-        _, count = match.groups()
-        ion_count += int(count) if count else 1
-            
+    # List of common polyatomic ions
+    polyatomic_ions = ['NH4', 'OH', 'NO3', 'SO4', 'CO3', 'PO4']
+
+    # 1. Handle polyatomic ions in parentheses first, e.g., Al₂(SO₄)₃
+    poly_in_parens = re.findall(r'\((\w+)\)(\d*)', formula)
+    for part, count_str in poly_in_parens:
+        count = int(count_str) if count_str else 1
+        ion_count += count
+        
+        poly_comp = Compound(part).composition
+        for atom, num_in_poly in poly_comp.items():
+            composition[atom] -= num_in_poly * count
+            if composition[atom] == 0:
+                del composition[atom]
+
+    # 2. Handle common polyatomic ions not in parentheses, e.g., KNO₃
+    for ion in polyatomic_ions:
+        poly_comp = Compound(ion).composition
+        # Check if the remaining atoms can form this polyatomic ion
+        if all(composition.get(atom, 0) >= num for atom, num in poly_comp.items()):
+            # Find how many times this ion can be formed
+            num_ions = min(composition[atom] // num for atom, num in poly_comp.items())
+            ion_count += num_ions
+            # Subtract the atoms of the polyatomic ion from the total composition
+            for atom, num in poly_comp.items():
+                composition[atom] -= num * num_ions
+                if composition[atom] == 0:
+                    del composition[atom]
+
+    # 3. Count the remaining atoms as monatomic ions
+    for atom, count in composition.items():
+        ion_count += count
+        
     return ion_count
+
 
 def calculate_freezing_point_depression(
     solute_formula: str,
@@ -198,3 +212,145 @@ def calculate_ppm_from_mass(
         raise ValueError("Mass of solution cannot be zero.")
     
     return (solute_g / solution_g) * 1e6
+
+def calculate_colligative_constant(delta_T: float, molality: float, i: int = 1) -> float:
+    """
+    Calculates a colligative constant (Kb or Kf) from experimental data.
+    K = ΔT / (i * m)
+    
+    Args:
+        delta_T: The measured change in temperature (°C).
+        molality: The molality of the solution (m).
+        i: The van't Hoff factor for the solute (defaults to 1).
+        
+    Returns:
+        The colligative constant in °C/m.
+    """
+    if molality == 0 or i == 0:
+        raise ValueError("Molality and van't Hoff factor cannot be zero.")
+    return delta_T / (i * molality)
+
+def raoults_law_moles_solute(
+    solute_formula: str,
+    n_solvent: float,
+    p_solution: float,
+    p_solvent_pure: float
+) -> float:
+    """
+    Calculates the moles of an ionic solute in a solution using Raoult's Law.
+    """
+    if p_solvent_pure == 0:
+        raise ValueError("Vapor pressure of pure solvent cannot be zero.")
+    
+    # Step 1: Calculate mole fraction of the solvent
+    x_solvent = p_solution / p_solvent_pure
+    
+    # Step 2: Get the van't Hoff factor for the solute using the corrected helper
+    i = _get_ideal_van_hoff_factor(solute_formula)
+    
+    # Step 3: Calculate total moles of all dissolved particles
+    if x_solvent >= 1:
+        return 0
+    n_particles = (n_solvent / x_solvent) - n_solvent
+    
+    # Step 4: Calculate moles of the solute compound by dividing by i
+    n_solute = n_particles / i
+    return n_solute
+
+def rank_by_colligative_effect(formulas: list[str]) -> str:
+    """
+    Ranks electrolytes by the magnitude of their colligative effect
+    (e.g., lowest to highest boiling point) based on their van't Hoff factor.
+    """
+    ranked_molecules = []
+    for f in formulas:
+        i = _get_ideal_van_hoff_factor(f)
+        ranked_molecules.append((f, i))
+    
+    ranked_molecules.sort(key=lambda x: x[1])
+    
+    ranked_list = [item[0] for item in ranked_molecules]
+    return " < ".join(ranked_list)
+
+def raoults_law_total_pressure(components: List[Tuple[float, float]]) -> float:
+    """
+    Calculates the total vapor pressure of an ideal solution of volatile liquids.
+    
+    Args:
+        components: A list of tuples, where each tuple contains
+                    (mole_fraction_X, pure_vapor_pressure_P_X).
+                    
+    Returns:
+        The total vapor pressure of the solution.
+    """
+    total_pressure = 0
+    for x, p_pure in components:
+        partial_pressure = x * p_pure
+        total_pressure += partial_pressure
+    return total_pressure
+
+def calculate_molar_mass_from_bp_elevation(
+    mass_solute_g: float,
+    mass_solvent_g: float,
+    delta_Tb: float,
+    kb_solvent: float,
+    i: int = 1
+) -> float:
+    """
+    Calculates the molar mass of a solute from boiling point elevation data.
+    """
+    if i == 0 or kb_solvent == 0:
+        raise ValueError("van't Hoff factor and Kb cannot be zero.")
+    
+    # 1. Calculate molality from ΔTb
+    molality = delta_Tb / (i * kb_solvent)
+    
+    # 2. Calculate moles of solute from molality and solvent mass
+    solvent_kg = mass_solvent_g / 1000.0
+    moles_solute = molality * solvent_kg
+    
+    # 3. Calculate molar mass
+    if moles_solute == 0:
+        raise ValueError("Calculated moles of solute is zero.")
+    molar_mass = mass_solute_g / moles_solute
+    return molar_mass
+
+def raoults_law_solution_pressure(
+    x_solvent: float,
+    p_solvent_pure: float
+) -> float:
+    """
+    Calculates the vapor pressure of an ideal solution using Raoult's Law.
+    
+    Args:
+        x_solvent: The mole fraction of the solvent.
+        p_solvent_pure: The vapor pressure of the pure solvent.
+        
+    Returns:
+        The vapor pressure of the solution in the same units as p_solvent_pure.
+    """
+    return x_solvent * p_solvent_pure
+
+def calculate_molality(
+    moles_solute: float,
+    mass_solvent: float,
+    solvent_unit: str = 'g'
+) -> float:
+    """
+    Calculates the molality of a solution.
+    
+    Args:
+        moles_solute: The moles of the solute.
+        mass_solvent: The mass of the solvent.
+        solvent_unit: The unit of the solvent's mass (e.g., 'g', 'kg').
+        
+    Returns:
+        The molality of the solution in mol/kg (m).
+    """
+    # Convert solvent mass to kg if it's in grams
+    solvent_kg = mass_solvent / 1000.0 if solvent_unit.lower() == 'g' else mass_solvent
+    
+    if solvent_kg == 0:
+        raise ValueError("Mass of solvent cannot be zero.")
+        
+    return moles_solute / solvent_kg
