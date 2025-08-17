@@ -323,3 +323,17 @@ def calculate_buffer_ph_from_pka(
         raise ValueError("Concentrations must be positive.")
     
     return pKa + math.log10(conc_base / conc_acid)
+
+def calculate_pka_from_buffer_ph(
+    pH: float,
+    conc_acid: float,
+    conc_base: float
+) -> float:
+    """
+    Calculates the pKa of a weak acid from the pH of a buffer solution.
+    pKa = pH - log([A⁻]/[HA])
+    """
+    if conc_acid <= 0 or conc_base <= 0:
+        raise ValueError("Concentrations must be positive.")
+    
+    return pH - math.log10(conc_base / conc_acid)
