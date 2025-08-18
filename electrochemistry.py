@@ -1,4 +1,8 @@
 # Add Faraday's constant at the top of the file
+import re
+from compound import Compound
+
+
 FARADAY_CONSTANT = 96485  # J/(V·mol) or C/mol
 
 def find_strongest_agent(
@@ -123,3 +127,58 @@ def will_reaction_occur(solid_metal: str, ion_metal: str) -> bool:
         return solid_reactivity < ion_reactivity
     except ValueError as e:
         raise ValueError(f"Metal not found in the activity series: {e}")
+    
+# Dictionary of common ion charges
+ION_CHARGES = {
+    'OH': -1, 'CN': -1, 'SO4': -2, 'CO3': -2, 'NO3': -1, 'PO4': -3, 'NH4': +1,
+    'F': -1, 'Cl': -1, 'Br': -1, 'I': -1, # Halides
+    'O': -2, 'S': -2, # Group 16
+    'H': +1, 'Li': +1, 'Na': +1, 'K': +1, # Group 1
+    'Mg': +2, 'Ca': +2, 'Ba': +2 # Group 2
+}
+
+def calculate_oxidation_state(formula: str, target_element: str) -> int:
+    """
+    Calculates the oxidation state of a target element in a simple ionic compound.
+    """
+    c = Compound(formula)
+    
+    # Assume the compound is neutral unless a charge is specified
+    total_charge = c.charge if c.charge is not None else 0
+    
+    composition = c.composition.copy()
+    
+    if target_element not in composition:
+        raise ValueError(f"Target element '{target_element}' not found in formula '{formula}'.")
+        
+    target_count = composition.pop(target_element)
+    
+    sum_of_known_charges = 0
+    
+    # Check for polyatomic ions in parentheses, e.g., (OH)2
+    poly_in_parens = re.findall(r'\((\w+)\)(\d*)', formula)
+    for part, count_str in poly_in_parens:
+        count = int(count_str) if count_str else 1
+        if part in ION_CHARGES:
+            sum_of_known_charges += ION_CHARGES[part] * count
+            # Remove these atoms so they aren't double-counted
+            poly_comp = Compound(part).composition
+            for atom, num_in_poly in poly_comp.items():
+                if atom in composition:
+                    composition[atom] -= num_in_poly * count
+    
+    # Handle remaining monatomic ions
+    for element, count in composition.items():
+        if count > 0 and element in ION_CHARGES:
+            sum_of_known_charges += ION_CHARGES[element] * count
+        elif count > 0:
+             raise ValueError(f"Unknown charge for element '{element}' in formula.")
+
+    # Solve for the unknown oxidation state (x)
+    # (target_count * x) + sum_of_known_charges = total_charge
+    oxidation_state = (total_charge - sum_of_known_charges) / target_count
+    
+    if not oxidation_state.is_integer():
+        raise ValueError(f"Could not determine an integer oxidation state for {target_element}.")
+        
+    return int(oxidation_state)

@@ -491,3 +491,133 @@ def compare_ligand_field_splitting(complexes: list[str]) -> str:
 
     sorted_complexes = sorted(complex_scores, key=complex_scores.get)
     return " < ".join(sorted_complexes)
+
+def get_coordination_number(formula: str) -> int:
+    """
+    Calculates the coordination number of a central metal in a coordination compound.
+    """
+    match = FULL_FORMULA_RE.match(formula)
+    if not match:
+        raise ValueError(f"Could not parse formula: {formula}")
+    parts = match.groupdict()
+
+    complex_inner = parts['complex'][1:-1]
+    metal_match = re.match(r"([A-Z][a-z]?)", complex_inner)
+    if not metal_match:
+        raise ValueError("Could not identify central metal in complex.")
+    metal_symbol = metal_match.group(1)
+    ligands_str = complex_inner[len(metal_symbol):]
+
+    # --- Re-use existing parsing logic to count ligands ---
+    ligand_counts = defaultdict(int)
+    sorted_ligand_keys = sorted(LIGAND_DATA.keys(), key=len, reverse=True)
+    i = 0
+    while i < len(ligands_str):
+        found_ligand = False
+        paren_match = re.match(r"\((\w+)\)(\d*)", ligands_str[i:])
+        if paren_match and paren_match.group(1) in sorted_ligand_keys:
+            key, count_str = paren_match.groups()
+            ligand_counts[key] += int(count_str) if count_str else 1
+            i += paren_match.end()
+            found_ligand = True
+        if not found_ligand:
+            for key in sorted_ligand_keys:
+                if ligands_str[i:].startswith(key):
+                    i += len(key)
+                    count_match = re.match(r"(\d+)", ligands_str[i:])
+                    count = 1
+                    if count_match:
+                        count = int(count_match.group(1))
+                        i += len(count_match.group(1))
+                    ligand_counts[key] += count
+                    found_ligand = True
+                    break
+        if not found_ligand:
+            raise ValueError(f"Unknown ligand in: {ligands_str[i:]}")
+
+    # --- Calculate coordination number ---
+    coordination_number = 0
+    for ligand_formula, count in ligand_counts.items():
+        denticity = LIGAND_DATA.get(ligand_formula, {}).get('denticity', 1)
+        coordination_number += count * denticity
+        
+    return coordination_number
+
+def predict_coordination_geometry(formula: str) -> str:
+    """
+    Predicts the likely geometry of a coordination complex for common cases.
+    """
+    # 1. Determine the coordination number
+    try:
+        cn = get_coordination_number(formula)
+    except Exception as e:
+        return f"Could not determine geometry: {e}"
+
+    # 2. Apply rules based on coordination number
+    if cn == 2:
+        return "Linear"
+    if cn == 6:
+        return "Octahedral"
+    if cn == 5:
+        return "Trigonal Bipyramidal"
+        
+    if cn == 4:
+        # For CN=4, we must check the d-electron count to decide
+        # between tetrahedral and square planar.
+        try:
+            # Get metal symbol and period
+            complex_inner = re.search(r'\[(.+?)\]', formula).group(1)
+            metal_symbol = re.match(r"([A-Z][a-z]?)", complex_inner).group(1)
+            
+            # Use a function from the compound module to get element data
+            from compound import PT 
+            metal_period = PT[metal_symbol].period
+            metal_group = PT[metal_symbol].group
+
+            # Get oxidation state and calculate d-electron count
+            ox_state = get_oxidation_state_from_formula(formula)
+            d_electron_count = metal_group - ox_state
+
+            # Rule: d8 metals, especially in periods 5 and 6 (4d and 5d), are square planar.
+            if d_electron_count == 8 and metal_period >= 5:
+                return "Square Planar"
+            else:
+                return "Tetrahedral" # Default for CN=4
+        except:
+            # If d-electron count fails, return the most common geometry for CN=4
+            return "Tetrahedral"
+
+    return f"Geometry for coordination number {cn} is not implemented."
+
+# --- Data for Crystal Field Theory ---
+ORBITAL_PROPERTIES = {
+    "octahedral": {
+        "d_xy": {"set": "t2g", "orientation": "between x and y axes"},
+        "d_yz": {"set": "t2g", "orientation": "between y and z axes"},
+        "d_xz": {"set": "t2g", "orientation": "between x and z axes"},
+        "d_z2": {"set": "eg", "orientation": "along the z-axis"},
+        "d_x2-y2": {"set": "eg", "orientation": "along the x and y axes"}
+    },
+    "tetrahedral": {
+        "d_xy": {"set": "e", "orientation": "points closer to ligands"},
+        "d_yz": {"set": "e", "orientation": "points closer to ligands"},
+        "d_xz": {"set": "e", "orientation": "points closer to ligands"},
+        "d_z2": {"set": "t2", "orientation": "points away from ligands"},
+        "d_x2-y2": {"set": "t2", "orientation": "points away from ligands"}
+    }
+    # Can be expanded for other geometries
+}
+
+def get_d_orbital_properties(orbital_name: str, geometry: str) -> dict:
+    """
+    Retrieves the properties of a d-orbital within a given crystal field geometry.
+    """
+    orbital_key = orbital_name.replace("^", "").replace("-", "") # Normalize name
+    geometry_key = geometry.lower()
+    
+    if geometry_key not in ORBITAL_PROPERTIES:
+        raise ValueError(f"Geometry '{geometry}' not supported.")
+    if orbital_key not in ORBITAL_PROPERTIES[geometry_key]:
+        raise ValueError(f"Orbital '{orbital_name}' not recognized.")
+        
+    return ORBITAL_PROPERTIES[geometry_key][orbital_key]
