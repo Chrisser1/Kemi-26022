@@ -196,27 +196,45 @@ def _get_base_hydroxides(base_formula: str) -> int:
     return 1
 
 def solve_titration(
-    acid_formula: str, Va_mL: float,
-    base_formula: str, Vb_mL: float,
-    known_conc: float, known_is_base: bool
-) -> float:
+    Ma: float = None, Va_mL: float = None, na: int = 1,
+    Mb: float = None, Vb_mL: float = None, nb: int = 1
+) -> dict[str, float]:
     """
-    Solves for the unknown molarity in an acid-base titration.
-    na*Ma*Va = nb*Mb*Vb
+    Solves for an unknown variable in an acid-base titration using the
+    formula na*Ma*Va = nb*Mb*Vb.
+    Use 'None' for the single variable you want to solve for.
+
+    Args:
+        Ma: Molarity of the acid.
+        Va_mL: Volume of the acid in mL.
+        na: Stoichiometric coefficient of the acid (protons it donates). Defaults to 1.
+        Mb: Molarity of the base.
+        Vb_mL: Volume of the base in mL.
+        nb: Stoichiometric coefficient of the base (protons it accepts). Defaults to 1.
+
+    Returns:
+        A dictionary containing the value of the unknown variable.
     """
-    na = _get_acid_protons(acid_formula)
-    nb = _get_base_hydroxides(base_formula)
-    
-    if known_is_base:
-        Mb = known_conc
-        # Solve for Ma
-        Ma = (nb * Mb * Vb_mL) / (na * Va_mL)
-        return Ma
-    else: # Known is acid
-        Ma = known_conc
-        # Solve for Mb
-        Mb = (na * Ma * Va_mL) / (nb * Vb_mL)
-        return Mb
+    params = {'Ma': Ma, 'Va_mL': Va_mL, 'Mb': Mb, 'Vb_mL': Vb_mL}
+    unknown = [k for k, v in params.items() if v is None]
+
+    if len(unknown) != 1:
+        raise ValueError("Exactly one variable (Ma, Va_mL, Mb, or Vb_mL) must be None.")
+
+    unknown_var = unknown[0]
+
+    if unknown_var == 'Va_mL':
+        result = (nb * Mb * Vb_mL) / (na * Ma)
+        return {'Va_mL': result}
+    elif unknown_var == 'Ma':
+        result = (nb * Mb * Vb_mL) / (na * Va_mL)
+        return {'Ma': result}
+    elif unknown_var == 'Vb_mL':
+        result = (na * Ma * Va_mL) / (nb * Mb)
+        return {'Vb_mL': result}
+    elif unknown_var == 'Mb':
+        result = (na * Ma * Va_mL) / (nb * Vb_mL)
+        return {'Mb': result}
     
 def calculate_buffer_h3o_conc(Ka: float, conc_acid: float, conc_base: float) -> float:
     """
@@ -238,6 +256,42 @@ def calculate_buffer_pH(Ka: float, conc_acid: float, conc_base: float) -> float:
         
     pKa = -math.log10(Ka)
     return pKa + math.log10(conc_base / conc_acid)
+
+def calculate_buffer_ph_from_mass(
+    Ka: float,
+    mass_acid_g: float,
+    fm_acid: float,
+    mass_base_g: float,
+    fm_base: float
+) -> float:
+    """
+    Calculates the pH of a buffer solution directly from the mass and
+    formula mass (FM) of its components.
+
+    Args:
+        Ka: The acid dissociation constant of the weak acid.
+        mass_acid_g: Mass of the weak acid in grams.
+        fm_acid: Formula mass of the weak acid (g/mol).
+        mass_base_g: Mass of the conjugate base in grams.
+        fm_base: Formula mass of the conjugate base (g/mol).
+
+    Returns:
+        The pH of the buffer solution.
+    """
+    # 1. Calculate moles of acid and base
+    moles_acid = mass_acid_g / fm_acid
+    moles_base = mass_base_g / fm_base
+
+    if moles_acid <= 0 or moles_base <= 0:
+        raise ValueError("Calculated moles must be positive.")
+
+    # 2. Calculate pKa
+    pKa = -math.log10(Ka)
+
+    # 3. Use Henderson-Hasselbalch with the mole ratio
+    pH = pKa + math.log10(moles_base / moles_acid)
+    
+    return pH
 
 def calculate_weak_base_pOH(initial_conc: float, Kb: float) -> float:
     """
@@ -337,3 +391,187 @@ def calculate_pka_from_buffer_ph(
         raise ValueError("Concentrations must be positive.")
     
     return pH - math.log10(conc_base / conc_acid)
+
+def calculate_buffer_after_addition(
+    initial_vol_L: float,
+    initial_conc_acid: float,
+    initial_conc_base: float,
+    added_vol_L: float,
+    added_conc: float,
+    added_is_acid: bool
+) -> dict[str, float]:
+    """
+    Calculates the final concentrations of a buffer's components after
+    a strong acid or base is added.
+
+    Returns a dictionary with the final concentrations of the acid and base.
+    """
+    # 1. Calculate initial moles
+    moles_acid = initial_vol_L * initial_conc_acid
+    moles_base = initial_vol_L * initial_conc_base
+    moles_added = added_vol_L * added_conc
+
+    # 2. Perform stoichiometric reaction
+    if added_is_acid:
+        moles_base -= moles_added
+        moles_acid += moles_added
+    else: # Added a base
+        moles_acid -= moles_added
+        moles_base += moles_added
+
+    # Check for buffer capacity exceeded
+    if moles_acid < 0 or moles_base < 0:
+        raise ValueError("Buffer capacity has been exceeded.")
+
+    # 3. Calculate new total volume and final concentrations
+    total_volume = initial_vol_L + added_vol_L
+    final_conc_acid = moles_acid / total_volume
+    final_conc_base = moles_base / total_volume
+
+    return {
+        "final_conc_acid": final_conc_acid,
+        "final_conc_base": final_conc_base
+    }
+
+def compare_buffer_capacities(buffers: list[dict]) -> str:
+    """
+    Analyzes a list of buffers and determines which has the greatest capacity.
+
+    Args:
+        buffers: A list of dictionaries, where each dict has 'conc_acid'
+                 and 'conc_base' keys.
+
+    Returns:
+        A string report explaining which buffer is best and why.
+    """
+    if not buffers:
+        return "No buffers provided for comparison."
+
+    best_buffer = None
+    max_capacity_score = -1
+
+    report = "--- Buffer Capacity Analysis ---\n\n"
+    report += "| Buffer | Total Conc. (M) | Ratio [Base]/[Acid] |\n"
+    report += "|:-------|:---------------:|:--------------------:|\n"
+
+    for i, b in enumerate(buffers):
+        total_conc = b['conc_acid'] + b['conc_base']
+        ratio = b['conc_base'] / b['conc_acid']
+        
+        # A simple scoring: prioritize total concentration, but penalize skewed ratios.
+        # A ratio far from 1 makes a buffer less effective.
+        ratio_penalty = abs(1 - ratio)
+        capacity_score = total_conc / (1 + ratio_penalty) # Higher is better
+
+        report += f"|   #{i+1}   |      {total_conc:.3f}      |        {ratio:.2f}         |\n"
+
+        if capacity_score > max_capacity_score:
+            max_capacity_score = capacity_score
+            best_buffer_index = i
+
+    best = buffers[best_buffer_index]
+    report += "\n--- Conclusion ---\n"
+    report += (
+        f"Buffer #{best_buffer_index + 1} ({best['conc_acid']} M Acid / {best['conc_base']} M Base) "
+        "has the greatest buffering capacity.\n"
+        "This is because it has the highest concentration of buffer components "
+        "while maintaining a ratio close to 1."
+    )
+    return report
+
+def titration_ph_at_half_equivalence(Ka_values: list[float], point_number: int) -> float:
+    """
+    Calculates the pH at a half-equivalence point for a titration.
+
+    Args:
+        Ka_values: A list of the acid dissociation constants (e.g., [Ka1, Ka2, ...]).
+        point_number: The half-equivalence point of interest (e.g., 1 for the first).
+
+    Returns:
+        The pH value at that specific point.
+    """
+    if not 1 <= point_number <= len(Ka_values):
+        raise IndexError("The requested half-equivalence point number is out of range for the given Ka values.")
+
+    # At the nth half-equivalence point, pH = pKa_n
+    Ka = Ka_values[point_number - 1]
+    pKa = -math.log10(Ka)
+    
+    return pKa
+
+def classify_lewis_acid_base(compound: Compound) -> str:
+    """
+    Classifies a chemical species as a Lewis acid, Lewis base, or neither,
+    based on a provided Compound object.
+    """
+    try:
+        formula = compound.input_formula or compound.formula()
+
+        # Rule 1: Cations are Lewis acids
+        if compound.charge is not None and compound.charge > 0:
+            return "Lewis Acid (cation)"
+
+        # Rule 2: Common molecules with incomplete octets are Lewis acids
+        central_atom = min(compound.composition, key=compound.composition.get)
+        if central_atom in ['B', 'Al']: # Group 13 elements
+            return f"Lewis Acid (incomplete octet on {central_atom})"
+
+        # Rule 3: Molecules with a central atom that can be an electron acceptor
+        if formula in ["CO2", "SO2", "SO3"]:
+            return "Lewis Acid (central atom can accept e- pair)"
+
+        # Rule 4: Common molecules with lone pairs are Lewis bases
+        if formula in ["H2O", "NH3", "OH"]:
+            return "Lewis Base (has lone pair(s) to donate)"
+        if compound.charge is not None and compound.charge < 0 and len(compound.composition) == 1:
+            return "Lewis Base (anion with lone pair(s))" # e.g., F-, Cl-
+
+        # Rule 5: Neutral, elemental atoms are typically neither
+        if len(compound.composition) == 1 and compound.charge is None:
+            return "Neither (neutral atom)"
+
+        return "Classification uncertain based on simple rules."
+
+    except Exception as e:
+        return f"Could not analyze compound '{compound}': {e}"
+    
+def calculate_buffer_ph_after_addition_from_moles(
+    initial_moles_acid: float,
+    initial_moles_base: float,
+    added_moles: float,
+    added_is_acid: bool,
+    Ka: float
+) -> float:
+    """
+    Calculates the final pH of a buffer after a strong acid or base is added,
+    starting from the initial moles of the buffer components.
+
+    Args:
+        initial_moles_acid: Initial moles of the weak acid.
+        initial_moles_base: Initial moles of the conjugate base.
+        added_moles: Moles of the strong acid or base being added.
+        added_is_acid: True if adding a strong acid, False for a strong base.
+        Ka: The acid dissociation constant of the weak acid.
+
+    Returns:
+        The final pH of the buffer solution.
+    """
+    # 1. Perform stoichiometric reaction
+    if added_is_acid:
+        final_moles_base = initial_moles_base - added_moles
+        final_moles_acid = initial_moles_acid + added_moles
+    else:  # Added a base
+        final_moles_acid = initial_moles_acid - added_moles
+        final_moles_base = initial_moles_base + added_moles
+
+    # Check for buffer capacity exceeded
+    if final_moles_acid <= 0 or final_moles_base <= 0:
+        raise ValueError("Buffer capacity has been exceeded.")
+
+    # 2. Calculate pKa
+    pKa = -math.log10(Ka)
+
+    # 3. Use Henderson-Hasselbalch with the final mole ratio
+    pH = pKa + math.log10(final_moles_base / final_moles_acid)
+    
+    return pH
