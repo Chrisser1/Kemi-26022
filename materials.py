@@ -2,6 +2,8 @@ import re
 import math
 from collections import defaultdict
 
+from compound import PT
+
 # --- UNIFIED DATA REPOSITORIES ---
 
 LIGAND_DATA = {
@@ -621,3 +623,93 @@ def get_d_orbital_properties(orbital_name: str, geometry: str) -> dict:
         raise ValueError(f"Orbital '{orbital_name}' not recognized.")
         
     return ORBITAL_PROPERTIES[geometry_key][orbital_key]
+
+def predict_unpaired_electrons(formula: str) -> int:
+    """
+    Predicts the number of unpaired d electrons in a coordination complex.
+    """
+    # 1. Get basic properties
+    cn = get_coordination_number(formula)
+    ox_state = get_oxidation_state_from_formula(formula)
+    complex_inner = re.search(r'\[(.+?)\]', formula).group(1)
+    metal_symbol = re.match(r"([A-Z][a-z]?)", complex_inner).group(1)
+    
+    # 2. Get d-electron count
+    metal_group = PT[metal_symbol].group
+    d_electrons = metal_group - ox_state
+    
+    # 3. Determine spin state (simplified for octahedral)
+    is_low_spin = False
+    if cn == 6 and 4 <= d_electrons <= 7:
+        # Find the strongest ligand in the complex to determine spin
+        ligands_str = complex_inner[len(metal_symbol):]
+        # This is a simplified check; we find the first ligand mentioned
+        found_ligand_key = next(
+            (key for key in sorted(LIGAND_DATA.keys(), key=len, reverse=True) if key in ligands_str),
+            None
+        )
+        if found_ligand_key:
+            # Check if the ligand is strong-field (in the upper half of the series)
+            ligand_strength_index = SPECTROCHEMICAL_SERIES.index(found_ligand_key)
+            if ligand_strength_index > len(SPECTROCHEMICAL_SERIES) / 2:
+                is_low_spin = True
+
+    # 4. Calculate unpaired electrons
+    if cn == 6: # Octahedral
+        if is_low_spin:
+            # Low-spin filling: fill t2g completely first
+            if d_electrons <= 3: return d_electrons
+            if d_electrons == 4: return 2
+            if d_electrons == 5: return 1
+            if d_electrons == 6: return 0
+            if d_electrons == 7: return 1
+        else: # High-spin filling
+            if d_electrons <= 5: return d_electrons
+            if d_electrons == 6: return 4
+            if d_electrons == 7: return 3
+            if d_electrons == 8: return 2
+            if d_electrons == 9: return 1
+            if d_electrons == 10: return 0
+
+    # Default for other geometries or simple cases
+    if d_electrons <= 5: return d_electrons
+    else: return 10 - d_electrons
+
+def get_d_orbital_configuration(d_electron_count: int, spin: str) -> str:
+    """
+    Determines the t2g/eg configuration for a d-electron count in an
+    octahedral complex.
+    
+    Args:
+        d_electron_count: The number of d-electrons (0-10).
+        spin: The spin state, either "high" or "low".
+    """
+    if not 0 <= d_electron_count <= 10:
+        raise ValueError("d-electron count must be between 0 and 10.")
+        
+    t2g_electrons = 0
+    eg_electrons = 0
+
+    if spin.lower() == 'low':
+        # Low-spin: fill t2g completely first
+        t2g_electrons = min(d_electron_count, 6)
+        eg_electrons = d_electron_count - t2g_electrons
+    
+    elif spin.lower() == 'high':
+        # High-spin: fill all orbitals with single electrons before pairing
+        # Fill t2g singly
+        t2g_singly = min(d_electron_count, 3)
+        # Fill eg singly
+        eg_singly = min(max(0, d_electron_count - 3), 2)
+        
+        # Pair up in t2g
+        t2g_paired = max(0, d_electron_count - 5)
+        # Pair up in eg
+        eg_paired = max(0, d_electron_count - 8)
+        
+        t2g_electrons = t2g_singly + t2g_paired
+        eg_electrons = eg_singly + eg_paired
+    else:
+        raise ValueError("Spin must be 'high' or 'low'.")
+        
+    return f"t2g^{t2g_electrons} eg^{eg_electrons}"

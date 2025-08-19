@@ -199,3 +199,31 @@ def find_most_polar_molecule(formulas: list[str]) -> str:
         report += "All molecules are nonpolar or have very low polarity."
         
     return report
+
+def rank_by_ionic_character(formulas: list[str]) -> str:
+    """
+    Ranks a list of binary compounds in order of increasing ionic character
+    based on their electronegativity difference.
+    """
+    bond_characters = []
+    for f in formulas:
+        try:
+            c = Compound(f)
+            if len(c.composition) != 2:
+                print(f"Warning: '{f}' is not a binary compound. Skipping.")
+                continue
+            
+            elem1, elem2 = c.composition.keys()
+            en1 = Compound._EN.get(elem1, 0)
+            en2 = Compound._EN.get(elem2, 0)
+            delta_en = abs(en1 - en2)
+            bond_characters.append((f, delta_en))
+        except Exception as e:
+            print(f"Could not process {f}: {e}")
+
+    # Sort the list based on the calculated ΔEN (the second item in the tuple)
+    bond_characters.sort(key=lambda x: x[1])
+    
+    # Format the ranked list into a string
+    ranked_list = [item[0] for item in bond_characters]
+    return " < ".join(ranked_list)
