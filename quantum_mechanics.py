@@ -232,3 +232,30 @@ def calculate_photoelectron_kinetic_energy(
     # Kinetic energy cannot be negative
     return max(0, kinetic_energy)
 
+def calculate_wavelength_from_energy(energy_J: float) -> float:
+    """
+    Calculates wavelength in meters from energy in Joules.
+    λ = hc / E
+    """
+    if energy_J == 0:
+        raise ValueError("Energy cannot be zero.")
+    return (PLANCK_CONSTANT_JS * SPEED_OF_LIGHT_MS) / energy_J
+
+def classify_radiation_from_wavelength(wavelength_nm: float) -> str:
+    """
+    Classifies electromagnetic radiation based on its wavelength in nanometers.
+    """
+    if wavelength_nm < 0.01:
+        return "Gamma ray"
+    elif wavelength_nm < 10:
+        return "X-ray"
+    elif wavelength_nm < 400:
+        return "Ultraviolet"
+    elif wavelength_nm < 700:
+        return "Visible light"
+    elif wavelength_nm < 1e6: # 1 mm
+        return "Infrared"
+    elif wavelength_nm < 1e9: # 1 m
+        return "Microwave"
+    else:
+        return "Radio wave"

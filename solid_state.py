@@ -115,3 +115,27 @@ def calculate_atoms_in_spherical_particle(
     num_atoms = moles * AVOGADRO_NUMBER
     
     return int(round(num_atoms))
+
+def calculate_unit_cells_from_mass(
+    element_symbol: str,
+    mass_g: float,
+    crystal_type: str
+) -> float:
+    """
+    Calculates the number of unit cells in a given mass of an element.
+    """
+    # 1. Get molar mass and Z
+    molar_mass = PT[element_symbol].atomic_mass
+    crystal_type = crystal_type.upper()
+    if crystal_type not in CRYSTAL_STRUCTURES:
+        raise ValueError(f"Crystal type '{crystal_type}' not supported.")
+    Z = CRYSTAL_STRUCTURES[crystal_type]["Z"]
+    
+    # 2. Calculate total atoms in the sample
+    moles = mass_g / molar_mass
+    total_atoms = moles * AVOGADRO_NUMBER
+    
+    # 3. Calculate number of unit cells
+    num_unit_cells = total_atoms / Z
+    
+    return num_unit_cells

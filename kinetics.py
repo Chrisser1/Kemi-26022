@@ -250,3 +250,25 @@ def calculate_rate_of_change(
     
     return rate_of_change_target
 
+# Define the gas constant in J/(mol*K)
+GAS_CONSTANT_R = 8.3145
+
+def calculate_activation_energy(k: float, A: float, T_kelvin: float) -> float:
+    """
+    Calculates the activation energy (Ea) in J/mol using the Arrhenius equation.
+    
+    Args:
+        k: The rate constant (in s⁻¹, etc.).
+        A: The frequency factor (in the same units as k).
+        T_kelvin: The temperature in Kelvin.
+        
+    Returns:
+        The activation energy (Ea) in J/mol.
+    """
+    if k <= 0 or A <= 0:
+        raise ValueError("Rate constant (k) and frequency factor (A) must be positive.")
+        
+    # Ea = -R * T * ln(k/A)
+    Ea_J_mol = -GAS_CONSTANT_R * T_kelvin * math.log(k / A)
+    
+    return Ea_J_mol

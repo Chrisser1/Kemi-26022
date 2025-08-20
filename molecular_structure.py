@@ -202,28 +202,74 @@ def find_most_polar_molecule(formulas: list[str]) -> str:
 
 def rank_by_ionic_character(formulas: list[str]) -> str:
     """
-    Ranks a list of binary compounds in order of increasing ionic character
+    Ranks a list of binary/diatomic compounds in order of increasing ionic character
     based on their electronegativity difference.
     """
     bond_characters = []
     for f in formulas:
         try:
             c = Compound(f)
-            if len(c.composition) != 2:
-                print(f"Warning: '{f}' is not a binary compound. Skipping.")
+            composition = c.composition
+            delta_en = 0.0
+
+            # Case 1: Homonuclear diatomic molecule (e.g., F2)
+            if len(composition) == 1 and sum(composition.values()) == 2:
+                delta_en = 0.0
+            # Case 2: Heteronuclear binary compound (e.g., HCl)
+            elif len(composition) == 2:
+                elem1, elem2 = composition.keys()
+                en1 = Compound._EN.get(elem1, 0)
+                en2 = Compound._EN.get(elem2, 0)
+                delta_en = abs(en1 - en2)
+            else:
+                print(f"Warning: '{f}' is not a diatomic/binary compound. Skipping.")
                 continue
             
-            elem1, elem2 = c.composition.keys()
-            en1 = Compound._EN.get(elem1, 0)
-            en2 = Compound._EN.get(elem2, 0)
-            delta_en = abs(en1 - en2)
             bond_characters.append((f, delta_en))
         except Exception as e:
             print(f"Could not process {f}: {e}")
 
-    # Sort the list based on the calculated ΔEN (the second item in the tuple)
+    # Sort the list based on the calculated ΔEN
     bond_characters.sort(key=lambda x: x[1])
     
     # Format the ranked list into a string
     ranked_list = [item[0] for item in bond_characters]
     return " < ".join(ranked_list)
+
+# A pre-computed dictionary for the number of structural isomers of alkanes (CnH2n+2)
+ALKANE_ISOMER_COUNT = {
+    1: 1,  # Methane
+    2: 1,  # Ethane
+    3: 1,  # Propane
+    4: 2,  # Butane
+    5: 3,  # Pentane
+    6: 5,  # Hexane
+    7: 9,  # Heptane
+    8: 18, # Octane
+    9: 35, # Nonane
+    10: 75, # Decane
+}
+
+def count_alkane_isomers(formula: str) -> int:
+    """
+    Counts the number of possible structural isomers for a saturated alkane
+    using a lookup table for formulas up to C10H22.
+    """
+    # Use regex to extract the number of carbon atoms
+    match = re.match(r'C(\d+)H(\d+)', formula)
+    if not match:
+        raise ValueError("Formula must be in the format CnH2n+2 (e.g., 'C6H14').")
+    
+    n_carbons = int(match.group(1))
+    n_hydrogens = int(match.group(2))
+
+    # Verify it's a saturated alkane
+    if n_hydrogens != 2 * n_carbons + 2:
+        raise ValueError("The formula does not match a saturated alkane (CnH2n+2).")
+
+    # Look up the number of isomers from the pre-computed dictionary
+    count = ALKANE_ISOMER_COUNT.get(n_carbons)
+    if count is None:
+        raise NotImplementedError(f"Isomer count for alkanes with {n_carbons} carbons is not available in the lookup table.")
+        
+    return count
