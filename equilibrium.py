@@ -29,6 +29,31 @@ def calculate_kp(
         
     return products_term / reactants_term
 
+def calculate_kp_generic(
+    reactants: dict[str, int],
+    products: dict[str, int],
+    partial_pressures: dict[str, float]
+) -> float:
+    """
+    Calculates Kp from dictionaries of species, coefficients, and partial pressures.
+    
+    Args:
+        reactants: A dictionary of {species_name: coefficient}.
+        products: A dictionary of {species_name: coefficient}.
+        partial_pressures: A dictionary of {species_name: pressure}.
+    """
+    products_term = 1.0
+    for species, coeff in products.items():
+        products_term *= partial_pressures[species] ** coeff
+        
+    reactants_term = 1.0
+    for species, coeff in reactants.items():
+        reactants_term *= partial_pressures[species] ** coeff
+        
+    if reactants_term == 0:
+        raise ValueError("The product of reactant pressures cannot be zero.")
+        
+    return products_term / reactants_term
 
 def manipulate_equilibrium_constant(
     original_k: float,
@@ -212,3 +237,51 @@ def solve_for_equilibrium_pressure(
         result = ((kp_value * reactants_term) / products_term)**(1/unknown_coeff)
         
     return result
+
+def calculate_ksp_from_solubility(
+    formula: str,
+    solubility_g_per_L: float
+) -> float:
+    """
+    Calculates the Ksp value from the solubility of a salt in g/L.
+    Handles simple and common polyatomic ionic compounds.
+    """
+    # 1. Calculate molar solubility (s)
+    solute = Compound(formula)
+    molar_solubility_s = solubility_g_per_L / solute.molar_mass
+    
+    # 2. Parse the formula to get coefficients x and y
+    # This logic is adapted from your more robust solutions.py parser
+    composition = solute.composition.copy()
+    ion_coeffs = []
+    
+    # Check for common polyatomic ions first
+    polyatomic_ions = ['NH4', 'OH', 'NO3', 'SO4', 'CO3', 'PO4']
+    found_poly = False
+    for ion in polyatomic_ions:
+        poly_comp = Compound(ion).composition
+        if all(composition.get(atom, 0) >= num for atom, num in poly_comp.items()):
+            # Find how many times this ion can be formed
+            num_ions = min(composition[atom] // num for atom, num in poly_comp.items())
+            ion_coeffs.append(num_ions)
+            # Subtract the atoms of the polyatomic ion
+            for atom, num in poly_comp.items():
+                composition[atom] -= num * num_ions
+                if composition[atom] == 0:
+                    del composition[atom]
+            found_poly = True
+            break # Assume only one type of polyatomic ion for simplicity in Ksp
+
+    # The remaining atoms are the counter-ion
+    for atom, count in composition.items():
+        ion_coeffs.append(count)
+        
+    if len(ion_coeffs) != 2:
+        raise ValueError(f"Could not parse '{formula}' into two distinct ions.")
+    
+    x, y = ion_coeffs[0], ion_coeffs[1]
+
+    # 3. Calculate Ksp using the formula: Ksp = (x^x * y^y) * s^(x+y)
+    ksp = (x**x) * (y**y) * (molar_solubility_s**(x + y))
+    
+    return ksp

@@ -354,3 +354,30 @@ def calculate_molality(
         raise ValueError("Mass of solvent cannot be zero.")
         
     return moles_solute / solvent_kg
+
+def calculate_dilution(M1=None, V1=None, M2=None, V2=None):
+    """
+    Solves for a single unknown variable in the dilution equation M1*V1 = M2*V2.
+    Provide the three known values and 'None' for the one to be calculated.
+    Units for concentration and volume must be consistent.
+    """
+    knowns = {'M1': M1, 'V1': V1, 'M2': M2, 'V2': V2}
+    unknowns = [k for k, v in knowns.items() if v is None]
+
+    if len(unknowns) != 1:
+        raise ValueError("Exactly one variable must be None to solve for.")
+
+    var_to_solve = unknowns[0]
+
+    if var_to_solve == 'V1':
+        result = (M2 * V2) / M1
+        return {'V1': result}
+    elif var_to_solve == 'M1':
+        result = (M2 * V2) / V1
+        return {'M1': result}
+    elif var_to_solve == 'V2':
+        result = (M1 * V1) / M2
+        return {'V2': result}
+    elif var_to_solve == 'M2':
+        result = (M1 * V1) / V2
+        return {'M2': result}

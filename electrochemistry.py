@@ -1,4 +1,5 @@
 # Add Faraday's constant at the top of the file
+import math
 import re
 from compound import Compound
 
@@ -182,3 +183,20 @@ def calculate_oxidation_state(formula: str, target_element: str) -> int:
         raise ValueError(f"Could not determine an integer oxidation state for {target_element}.")
         
     return int(oxidation_state)
+
+def calculate_equilibrium_constant_from_potentials(
+    E_cathode: float,
+    E_anode: float,
+    n_electrons: int
+) -> float:
+    """
+    Calculates the equilibrium constant K from standard reduction potentials.
+    """
+    # 1. Calculate standard cell potential
+    e_cell = E_cathode - E_anode
+    
+    # 2. Use the Nernst equation relation at 298 K to find K
+    # K = 10^(n * E_cell / 0.0592)
+    exponent = (n_electrons * e_cell) / 0.0592
+    
+    return math.pow(10, exponent)
