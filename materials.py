@@ -349,42 +349,6 @@ def formula_from_name(name: str) -> str:
     else:
         raise ValueError("Could not determine compound structure from name (invalid oxidation states).")
 
-# --- Example Usage ---
-if __name__ == '__main__':
-    # --- Test cases for name_from_formula ---
-    print("--- Testing Formula to Name ---")
-    formulas_to_test = [
-        "K2[TiF6]",
-        "(NH4)2[Ni(CN)4]",
-        "[Fe(NH3)4Cl2]+",
-        "[Co(NH3)6]Cl3",
-        "Na3[Co(NO2)6]",
-        "[Cr(en)3]Cl3",
-    ]
-    for formula in formulas_to_test:
-        try:
-            name = name_from_formula(formula)
-            print(f"{formula:<20} -> {name}")
-        except (ValueError, KeyError) as e:
-            print(f"{formula:<20} -> ERROR: {e}")
-
-    # --- Test cases for formula_from_name ---
-    print("\n--- Testing Name to Formula ---")
-    names_to_test = [
-        "potassium hexafluoridotitanate(IV)",
-        "tetraamminedichlorochromium(III) ion",
-        "tetraamminedichlorochromium(III)", # Test case that was failing
-        "tris(ethylenediamine)cobalt(III) chloride",
-        # New test case for double complex salt
-        "tetraamminedichlorochromium(III)tetrabromomanganate(II)"
-    ]
-    for name in names_to_test:
-        try:
-            formula = formula_from_name(name)
-            print(f"{name:<60} -> {formula}")
-        except (ValueError, KeyError) as e:
-            print(f"{name:<60} -> ERROR: {e}")
-
 def get_oxidation_state_from_formula(formula: str) -> int:
     """Calculates the oxidation state of the central metal in a coordination compound."""
     match = FULL_FORMULA_RE.match(formula)
@@ -548,14 +512,10 @@ def get_coordination_number(formula: str) -> int:
 def predict_coordination_geometry(formula: str) -> str:
     """
     Predicts the likely geometry of a coordination complex for common cases.
+    (Corrected to properly handle d8 ions like Ni(II))
     """
-    # 1. Determine the coordination number
-    try:
-        cn = get_coordination_number(formula)
-    except Exception as e:
-        return f"Could not determine geometry: {e}"
+    cn = get_coordination_number(formula)
 
-    # 2. Apply rules based on coordination number
     if cn == 2:
         return "Linear"
     if cn == 6:
@@ -564,32 +524,28 @@ def predict_coordination_geometry(formula: str) -> str:
         return "Trigonal Bipyramidal"
         
     if cn == 4:
-        # For CN=4, we must check the d-electron count to decide
-        # between tetrahedral and square planar.
+        # For CN=4, we must check the d-electron count for the d8 square planar exception.
         try:
-            # Get metal symbol and period
-            complex_inner = re.search(r'\[(.+?)\]', formula).group(1)
+            match = FULL_FORMULA_RE.match(formula)
+            complex_inner = match.group('complex')[1:-1]
             metal_symbol = re.match(r"([A-Z][a-z]?)", complex_inner).group(1)
             
-            # Use a function from the compound module to get element data
-            from compound import PT 
-            metal_period = PT[metal_symbol].period
             metal_group = PT[metal_symbol].group
-
-            # Get oxidation state and calculate d-electron count
             ox_state = get_oxidation_state_from_formula(formula)
+            
+            # d-electron count = group number - oxidation state
             d_electron_count = metal_group - ox_state
 
-            # Rule: d8 metals, especially in periods 5 and 6 (4d and 5d), are square planar.
-            if d_electron_count == 8 and metal_period >= 5:
+            # Rule: d8 metals (especially Ni, Pd, Pt) are typically square planar.
+            if d_electron_count == 8:
                 return "Square Planar"
             else:
-                return "Tetrahedral" # Default for CN=4
+                return "Tetrahedral" # Default for other CN=4 cases
         except:
             # If d-electron count fails, return the most common geometry for CN=4
             return "Tetrahedral"
 
-    return f"Geometry for coordination number {cn} is not implemented."
+    raise ValueError(f"Geometry for coordination number {cn} is not implemented.")
 
 # --- Data for Crystal Field Theory ---
 ORBITAL_PROPERTIES = {
@@ -713,3 +669,71 @@ def get_d_orbital_configuration(d_electron_count: int, spin: str) -> str:
         raise ValueError("Spin must be 'high' or 'low'.")
         
     return f"t2g^{t2g_electrons} eg^{eg_electrons}"
+
+def predict_geometrical_isomers(formula: str) -> str:
+    """
+    Predicts the number and type of geometrical isomers for a coordination complex.
+    (Corrected Version)
+    """
+    try:
+        geometry = predict_coordination_geometry(formula)
+        
+        # --- Parse Ligands using the robust FULL_FORMULA_RE ---
+        match = FULL_FORMULA_RE.match(formula)
+        if not match:
+            raise ValueError(f"Could not parse formula: {formula}")
+        
+        complex_inner = match.group('complex')[1:-1]
+        metal_symbol = re.match(r"([A-Z][a-z]?)", complex_inner).group(1)
+        ligands_str = complex_inner[len(metal_symbol):]
+        
+        ligand_counts = defaultdict(int)
+        sorted_ligand_keys = sorted(LIGAND_DATA.keys(), key=len, reverse=True)
+        i = 0
+        while i < len(ligands_str):
+            found_ligand = False
+            paren_match = re.match(r"\((\w+)\)(\d*)", ligands_str[i:])
+            if paren_match and paren_match.group(1) in sorted_ligand_keys:
+                key, count_str = paren_match.groups()
+                ligand_counts[key] += int(count_str) if count_str else 1
+                i += paren_match.end()
+                found_ligand = True
+            if not found_ligand:
+                for key in sorted_ligand_keys:
+                    if ligands_str[i:].startswith(key):
+                        i += len(key)
+                        count_match = re.match(r"(\d+)", ligands_str[i:])
+                        count = int(count_match.group(1)) if count_match else 1
+                        i += len(count_match.group(1) or "")
+                        ligand_counts[key] += count
+                        found_ligand = True
+                        break
+            if not found_ligand:
+                 # If no known ligand is found, advance the pointer to avoid an infinite loop
+                i += 1
+
+        num_ligand_types = len(ligand_counts)
+        counts = sorted(list(ligand_counts.values()))
+
+        # --- Isomer Rules ---
+        if geometry == "Tetrahedral":
+            return "1 form (Tetrahedral complexes do not have geometrical isomers)"
+            
+        if geometry == "Square Planar":
+            if num_ligand_types == 2 and counts == [2, 2]: # MA2B2 type
+                return "2 forms (cis and trans isomers)"
+            if num_ligand_types > 2: # MABCD, MABC2 etc.
+                return "Multiple isomer forms exist"
+
+        if geometry == "Octahedral":
+            if num_ligand_types == 2:
+                if counts == [2, 4]: # MA4B2 type
+                    return "2 forms (cis and trans isomers)"
+                if counts == [3, 3]: # MA3B3 type
+                    return "2 forms (facial and meridional isomers)"
+        
+        # Default case: If no specific rule matches (e.g., MA5B, MCl6)
+        return "Only 1 geometrical isomer form"
+
+    except Exception as e:
+        return f"Could not analyze: {e}"

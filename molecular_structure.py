@@ -47,36 +47,55 @@ VSEPR_GEOMETRIES = {
 # NEW: A dictionary for how many electrons surrounding atoms typically accept in bonds.
 ELECTRONS_ACCEPTED_IN_BONDS = {'F': 1, 'Cl': 1, 'Br': 1, 'I': 1, 'H': 1, 'O': 2}
 
+# In molecular_structure.py, make sure you have this version of the function.
 def predict_molecular_geometry(compound_formula: str) -> Tuple[str, str, int, int]:
     """
     Predicts the molecular geometry of a simple compound using VSEPR theory.
-    (Corrected Version)
+    (Updated to handle multiple bonds and ions)
     """
     c = Compound(compound_formula)
     
     if not c.composition:
         raise ValueError("Cannot parse compound formula.")
-    
-    central_atom = min(c.composition, key=c.composition.get)
+
+    # --- Improved Central Atom Logic ---
+    if len(c.composition) > 1:
+        non_h_atoms = {el: count for el, count in c.composition.items() if el != 'H'}
+        if 1 in non_h_atoms.values():
+            central_atom = [el for el, count in non_h_atoms.items() if count == 1][0]
+        else:
+            central_atom = min(non_h_atoms, key=lambda el: Compound._EN.get(el, 99))
+    else:
+        central_atom = list(c.composition.keys())[0]
+
     surrounding_atoms = {el: count for el, count in c.composition.items() if el != central_atom}
     
-    # --- Corrected Logic ---
-    central_valence_e = VALENCE_ELECTRONS.get(central_atom, 0)
-    bonding_pairs = sum(surrounding_atoms.values())
-    
-    # Calculate electrons from the central atom used for bonding
-    electrons_used_in_bonding = sum(ELECTRONS_ACCEPTED_IN_BONDS.get(el, 1) * count for el, count in surrounding_atoms.items())
-    
-    # Calculate lone pairs on the central atom
-    lone_pairs = (central_valence_e - electrons_used_in_bonding) // 2
-    
-    total_domains = bonding_pairs + lone_pairs
+    # --- VSEPR Logic based on Electron Domains ---
+    total_valence_e = VALENCE_ELECTRONS.get(central_atom, 0) + \
+                      sum(VALENCE_ELECTRONS.get(el, 0) * count for el, count in surrounding_atoms.items())
+    # Account for the overall charge of the ion
+    if c.charge is not None:
+        total_valence_e -= c.charge
+
+    bonding_domains = sum(surrounding_atoms.values())
+    electrons_in_bonds = bonding_domains * 2
+    remaining_electrons = total_valence_e - electrons_in_bonds
+
+    electrons_for_central_atom = remaining_electrons
+    for atom, count in surrounding_atoms.items():
+        if atom != 'H':
+            electrons_needed = count * 6 
+            placed = min(electrons_for_central_atom, electrons_needed)
+            electrons_for_central_atom -= placed
+
+    lone_pairs_on_central = electrons_for_central_atom // 2
+    total_domains = bonding_domains + lone_pairs_on_central
     
     try:
-        electron_geom, molecular_geom = VSEPR_GEOMETRIES[total_domains][lone_pairs]
-        return electron_geom, molecular_geom, bonding_pairs, lone_pairs
+        electron_geom, molecular_geom = VSEPR_GEOMETRIES[total_domains][lone_pairs_on_central]
+        return electron_geom, molecular_geom, bonding_domains, lone_pairs_on_central
     except KeyError:
-        raise NotImplementedError(f"Geometry for {total_domains} domains with {lone_pairs} lone pairs is not defined.")
+        raise NotImplementedError(f"Geometry for {total_domains} domains with {lone_pairs_on_central} lone pairs is not defined.")
 
 def _is_symmetrical(molecular_geom: str, surrounding_atoms: Dict[str, int]) -> bool:
     """

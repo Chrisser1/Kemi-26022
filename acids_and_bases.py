@@ -575,3 +575,29 @@ def calculate_buffer_ph_after_addition_from_moles(
     pH = pKa + math.log10(final_moles_base / final_moles_acid)
     
     return pH
+
+def calculate_titration_ph_at_equivalence(
+    initial_conc_acid: float,
+    initial_vol_mL_acid: float,
+    Ka_acid: float,
+    conc_base: float
+) -> float:
+    """
+    Calculates the pH at the equivalence point for a weak acid-strong base titration.
+    """
+    # 1. Calculate initial moles of acid and volume of base needed
+    initial_moles_acid = initial_conc_acid * (initial_vol_mL_acid / 1000)
+    vol_L_base = initial_moles_acid / conc_base
+    
+    # 2. Calculate total volume and concentration of conjugate base
+    total_volume_L = (initial_vol_mL_acid / 1000) + vol_L_base
+    conc_conjugate_base = initial_moles_acid / total_volume_L
+    
+    # 3. Calculate Kb for the conjugate base
+    Kb_base = convert_ka_kb(Ka_acid)
+    
+    # 4. Calculate pOH from the weak base equilibrium
+    pOH = calculate_weak_base_pOH(conc_conjugate_base, Kb_base)
+    
+    # 5. Convert pOH to pH and return
+    return convert_pOH_to_pH(pOH)

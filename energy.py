@@ -286,6 +286,46 @@ def parse_reaction_string(reaction_str: str) -> Dict[str, int]:
             
     return net_coeffs
 
+def parse_reaction_string_special(reaction_str: str) -> Dict[str, int]:
+    """
+    Parses a reaction string into a dictionary of species and their net coefficients.
+    Handles integer and floating-point coefficients. (Corrected Version)
+    """
+    net_coeffs = defaultdict(float)
+    
+    # Regex to capture an optional coefficient and the species name that follows.
+    # The species can include letters, numbers, and a state like (g) or (graphite).
+    term_re = re.compile(r"(\d*\.?\d*)\s*([A-Za-z0-9()]+(?:\([a-z]+\))?)")
+
+    try:
+        reactants_str, products_str = reaction_str.split('->')
+    except ValueError:
+        raise ValueError(f"Invalid reaction format: '{reaction_str}'. Must contain '->'.")
+
+    # --- Process reactants (negative coefficients) ---
+    for term in reactants_str.split('+'):
+        term = term.strip()
+        match = term_re.match(term)
+        if not match:
+            raise ValueError(f"Could not parse reactant term: '{term}'")
+        
+        coeff_str, species = match.groups()
+        coeff = float(coeff_str) if coeff_str else 1.0
+        net_coeffs[species] -= coeff
+
+    # --- Process products (positive coefficients) ---
+    for term in products_str.split('+'):
+        term = term.strip()
+        match = term_re.match(term)
+        if not match:
+            raise ValueError(f"Could not parse product term: '{term}'")
+            
+        coeff_str, species = match.groups()
+        coeff = float(coeff_str) if coeff_str else 1.0
+        net_coeffs[species] += coeff
+            
+    return net_coeffs
+
 def solve_hess_law(
     target_reaction_str: str,
     known_reaction_strs: list[str],
@@ -294,12 +334,12 @@ def solve_hess_law(
     """
     Solves for the enthalpy of a target reaction using Hess's Law from reaction strings.
     """
-    target_coeffs = parse_reaction_string(target_reaction_str)
+    target_coeffs = parse_reaction_string_special(target_reaction_str)
     
     all_species = set(target_coeffs.keys())
     known_coeffs_list = []
     for r_str in known_reaction_strs:
-        coeffs = parse_reaction_string(r_str)
+        coeffs = parse_reaction_string_special(r_str)
         known_coeffs_list.append(coeffs)
         all_species.update(coeffs.keys())
         

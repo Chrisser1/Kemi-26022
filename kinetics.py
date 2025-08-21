@@ -272,3 +272,25 @@ def calculate_activation_energy(k: float, A: float, T_kelvin: float) -> float:
     Ea_J_mol = -GAS_CONSTANT_R * T_kelvin * math.log(k / A)
     
     return Ea_J_mol
+
+def arrhenius_solve_for_T(k: float, A: float, Ea_kJ_mol: float) -> float:
+    """
+    Calculates the temperature in Kelvin using the Arrhenius equation.
+    
+    Args:
+        k: The rate constant (in s⁻¹, etc.).
+        A: The frequency factor (in the same units as k).
+        Ea_kJ_mol: The activation energy in kJ/mol.
+        
+    Returns:
+        The temperature in Kelvin.
+    """
+    if k <= 0 or A <= 0:
+        raise ValueError("Rate constant (k) and frequency factor (A) must be positive.")
+        
+    Ea_J_mol = Ea_kJ_mol * 1000
+    
+    # T = Ea / (R * ln(A/k))
+    temperature_K = Ea_J_mol / (GAS_CONSTANT_R * math.log(A / k))
+    
+    return temperature_K
